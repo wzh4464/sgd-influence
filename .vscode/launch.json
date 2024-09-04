@@ -1,0 +1,39 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Train Script",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/experiment/Sec71/train.py",
+            "args": [
+                "--target", "adult",
+                "--model", "logreg",
+                "--seed", "0",
+                "--gpu", "0"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/experiment/Sec71"
+        },
+        {
+            "name": "Python: Infl Script",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/experiment/Sec71/infl.py",
+            "args": [
+                "--target", "adult",
+                "--model", "logreg",
+                "--type", "true",
+                "--seed", "0",
+                "--gpu", "0"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/experiment/Sec71"
+        }
+    ]
+}
