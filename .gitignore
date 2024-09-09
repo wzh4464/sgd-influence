@@ -1,1 +1,8 @@
 .DS_Store
+*.log
+*.err
+*.pyc
+*.dat
+**/adult_dnn*
+*.npz
+.vscode/settings.json

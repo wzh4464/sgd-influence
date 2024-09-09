@@ -1,7 +1,7 @@
 import os, sys
 import copy
 import numpy as np
-from sklearn.externals import joblib
+import joblib
 import torch
 from torchvision import transforms
 import MyNet

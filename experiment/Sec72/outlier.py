@@ -1,7 +1,7 @@
 import os, sys
 import copy
 import numpy as np
-from sklearn.externals import joblib
+import joblib
 from sklearn.ensemble import IsolationForest
 import torch
 import torch.nn as nn
