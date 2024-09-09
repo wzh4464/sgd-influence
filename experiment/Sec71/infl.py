@@ -8,6 +8,10 @@ import torch
 from DataModule import MnistModule, NewsModule, AdultModule
 from MyNet import LogReg, DNN, NetList
 import train
+import warnings
+
+# no future warning
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -45,14 +49,14 @@ def infl_true(key, model_type, seed=0, gpu=0):
         )
         _, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
         (x_val, y_val) = z_val
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
+        # net_func = lambda: LogReg(x_tr.shape[1]).to(device)
     elif model_type == "dnn":
         module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
             train.settings_dnn(key)
         )
         _, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
         (x_val, y_val) = z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+        # net_func = lambda: DNN(x_tr.shape[1]).to(device)
 
     # to tensor
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
@@ -72,7 +76,7 @@ def infl_true(key, model_type, seed=0, gpu=0):
     # print(acc, loss.item())
     infl = np.zeros(n_tr)
     for i in range(n_tr):
-        m = res["counterfactual"].models[i]
+        m = res["counterfactual"].models[i].to(device)
         m.eval()
         zi = m(x_val)
         lossi = loss_fn(zi, y_val)
@@ -124,7 +128,7 @@ def infl_sgd(key, model_type, seed=0, gpu=0):
     u = [uu.to(device) for uu in u]
 
     # model list
-    models = res["models"].models[:-1]
+    models = [m.to(device) for m in res["models"].models[:-1]]
 
     # influence
     alpha = res["alpha"]
@@ -200,7 +204,7 @@ def infl_nohess(key, model_type, seed=0, gpu=0):
     u = [uu.to(device) for uu in u]
 
     # model list
-    models = res["models"].models[:-1]
+    models = [m.to(device) for m in res["models"].models[:-1]]
 
     # influence
     alpha = res["alpha"]
