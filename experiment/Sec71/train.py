@@ -71,7 +71,7 @@ def settings_dnn(key):
         n_tr, n_val, n_test = 200, 200, 200
         m = [8, 8]
         alpha = 0.001
-        lr, decay, num_epoch, batch_size = 0.1, False, 10, 20
+        lr, decay, num_epoch, batch_size = 0.1, False, 12, 20
         return (
             module,
             (n_tr, n_val, n_test),
@@ -84,8 +84,7 @@ def settings_dnn(key):
 def test(key, model_type, seed=0, gpu=0):
     dn = f"./{key}_{model_type}"
     fn = "%s/sgd%03d.dat" % (dn, seed)
-    if not os.path.exists(dn):
-        os.mkdir(dn)
+    os.makedirs(dn, exist_ok=True)
     device = "cuda:%d" % (gpu,)
 
     # fetch data
