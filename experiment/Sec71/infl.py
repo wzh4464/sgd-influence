@@ -1,6 +1,7 @@
 import os, sys
 import argparse
 import numpy as np
+import pandas as pd
 
 # import joblib
 import joblib
@@ -328,6 +329,110 @@ def infl_icml(key, model_type, seed=0, gpu=0):
     # save
     joblib.dump(infl, gn, compress=9)
 
+def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
+    dn = f"./{key}_{model_type}"
+    fn = "%s/sgd%03d.dat" % (dn, seed)
+    device = "cuda:%d" % (gpu,)
+
+    # setup
+    if model_type == "logreg":
+        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
+            train.settings_logreg(key)
+        )
+        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
+        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
+    elif model_type == "dnn":
+        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
+            train.settings_dnn(key)
+        )
+        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
+        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+
+    # to tensor
+    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
+    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
+    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
+    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
+
+    # model setup
+    res = joblib.load(fn)
+    model = res["models"].models[-1].to(device)
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+    model.eval()
+
+    # gradient
+    u = compute_gradient(x_val, y_val, model, loss_fn)
+    u = [uu.to(device) for uu in u]
+
+    # model list
+    models = [m.to(device) for m in res["models"].models]
+
+    # influence
+    alpha = res["alpha"]
+    info = res["info"]
+    infl = np.zeros(n_tr)
+    
+    # 使用自定义的 epoch 数量
+    for t in range(min(custom_epoch, len(models)) - 1, -1, -1):
+        m = models[t]
+        m.eval()
+        idx, lr = info[t]["idx"], info[t]["lr"]
+        for i in idx:
+            z = m(x_tr[[i]])
+            loss = loss_fn(z, y_tr[[i]])
+            for p in m.parameters():
+                loss += 0.5 * alpha * (p * p).sum()
+            m.zero_grad()
+            loss.backward()
+            for j, param in enumerate(m.parameters()):
+                infl[i] += lr * (u[j].data * param.grad.data).sum().item() / idx.size
+
+        # update u
+        z = m(x_tr[idx])
+        loss = loss_fn(z, y_tr[idx])
+        for p in m.parameters():
+            loss += 0.5 * alpha * (p * p).sum()
+        grad_params = torch.autograd.grad(loss, m.parameters(), create_graph=True)
+        ug = sum((uu * g).sum() for uu, g in zip(u, grad_params))
+        m.zero_grad()
+        ug.backward()
+        for j, param in enumerate(m.parameters()):
+            u[j] -= lr * param.grad.data
+
+    return infl
+
+import pandas as pd
+
+def infl_lie(key, model_type, seed=0, gpu=0, is_csv=False):
+    dn = f"./{key}_{model_type}"
+    csv_fn = f"{dn}/infl_lie_{seed}.csv"
+    
+    # 计算不同 epoch 的结果
+    infl_0 = infl_lie_helper(key, model_type, 0, seed, gpu)
+    infl_4 = infl_lie_helper(key, model_type, 4, seed, gpu)
+    infl_8 = infl_lie_helper(key, model_type, 8, seed, gpu)
+    infl_12 = infl_lie_helper(key, model_type, 12, seed, gpu)
+    
+    # 计算差值
+    diff_0_4 = infl_4 - infl_0
+    diff_4_8 = infl_8 - infl_4
+    diff_8_12 = infl_12 - infl_8
+    
+    # 保存为 CSV
+    if is_csv:
+        # 创建 DataFrame
+        df = pd.DataFrame({
+            'diff_0_4': diff_0_4,
+            'diff_4_8': diff_4_8,
+            'diff_8_12': diff_8_12
+        })
+        df.to_csv(csv_fn, index=False)
+
+    joblib.dump([infl_0, infl_4, infl_8, infl_12], f"{dn}/infl_lie_%03d.dat" % seed, compress=9)
+    
+    print(f"Results saved to {csv_fn}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train Models & Save")
@@ -339,7 +444,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     assert args.target in ["mnist", "20news", "adult"]
     assert args.model in ["logreg", "dnn"]
-    assert args.type in ["true", "sgd", "nohess", "icml"]
+    assert args.type in ["true", "sgd", "nohess", "icml", "lie"]
     if args.type == "true":
         if args.seed >= 0:
             infl_true(args.target, args.model, args.seed, args.gpu)
@@ -364,3 +469,9 @@ if __name__ == "__main__":
         else:
             for seed in range(100):
                 infl_icml(args.target, args.model, seed, args.gpu)
+    elif args.type == "lie":
+        if args.seed >= 0:
+            infl_lie(args.target, args.model, args.seed, args.gpu, is_csv=True)
+        else:
+            for seed in range(100):
+                infl_lie(args.target, args.model, seed, args.gpu)
