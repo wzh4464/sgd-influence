@@ -119,13 +119,14 @@ def test(key, model_type, seed=0, gpu=0):
     # fit
     num_steps = int(np.ceil(n_tr / batch_size))
     list_of_sgd_models = []
-    list_of_counterfactual_models = []
-    main_losses = np.zeros(num_epoch * num_steps + 1)
+    list_of_counterfactual_models = [NetList([]) for _ in range(n_tr)]  # 每个样本有一个 NetList，保存该样本的训练过程
+    main_losses = []
     # counterfactual_losses = np.zeros((n_tr, num_epoch * num_steps + 1))
     train_losses = np.zeros(num_epoch * num_steps + 1)  # 用于保存每步的训练损失
     train_losses[0] = nn.BCEWithLogitsLoss()(net_func()(x_tr), y_tr).item() # 记录初始损失
+    # main_losses.append(train_losses[0])
 
-    val_interval = 20  # 设置验证损失的计算间隔
+    val_interval = 10  # 设置验证损失的计算间隔
 
     for n in range(-1, n_tr):
         torch.manual_seed(seed)
@@ -151,12 +152,12 @@ def test(key, model_type, seed=0, gpu=0):
                     list_of_sgd_models.append(m)
                     if c % val_interval == 0 or c == num_steps * num_epoch:
                         with torch.no_grad():
-                            main_losses[c - 1] = loss_fn(model(x_val), y_val).item()
+                            main_losses.append(loss_fn(model(x_val), y_val).item())
                 else:
                     # 保存反事实模型和验证损失（如果符合间隔要求）
                     m = net_func()
                     m.load_state_dict(copy.deepcopy(model.state_dict()))
-                    list_of_counterfactual_models.append(m)
+                    list_of_counterfactual_models[n].models.append(m)
                     # if c % val_interval == 0 or c == num_steps * num_epoch:
                     #     with torch.no_grad():
                     #         counterfactual_losses[n, c - 1] = loss_fn(
@@ -193,18 +194,18 @@ def test(key, model_type, seed=0, gpu=0):
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
             list_of_sgd_models.append(m)
-            main_losses[-1] = loss_fn(model(x_val), y_val).item()
+            main_losses.append(loss_fn(model(x_val), y_val).item())
         else:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
-            list_of_counterfactual_models.append(m)
+            list_of_counterfactual_models[n].models.append(m)
 
     # 保存所有数据
     joblib.dump(
         {
             "models": NetList(list_of_sgd_models),
             "info": info,
-            "counterfactual": NetList(list_of_counterfactual_models),
+            "counterfactual": list_of_counterfactual_models,
             "alpha": alpha,
             "main_losses": main_losses,
             # "counterfactual_losses": counterfactual_losses,
