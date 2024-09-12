@@ -77,7 +77,7 @@ def infl_true(key, model_type, seed=0, gpu=0):
     # print(acc, loss.item())
     infl = np.zeros(n_tr)
     for i in range(n_tr):
-        m = res["counterfactual"].models[i].to(device)
+        m = res["counterfactual"][i].models[-1].to(device)
         m.eval()
         zi = m(x_val)
         lossi = loss_fn(zi, y_val)
