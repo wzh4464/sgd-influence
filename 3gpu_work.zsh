@@ -8,10 +8,12 @@ setopt PIPE_FAIL
 HOME_DIR="/home/zihan"
 PYTHON_ENV="$HOME_DIR/codes/sgd-influence/.venv/bin/python"
 WORK_DIR="$HOME_DIR/codes/sgd-influence/experiment/Sec71"
-TRAIN_SCRIPT="$WORK_DIR/train.py"
+# TRAIN_SCRIPT="$WORK_DIR/train.py"
+TRAIN_SCRIPT="$WORK_DIR/infl.py"
 
 # 定义 Python 执行命令作为变量
-PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0'
+# PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0'
+PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --type true'
 
 # 解析命令行参数
 TARGET="mnist"
@@ -42,6 +44,7 @@ echo "Job started at: $(date)"
 echo "Job ID: $$"
 echo "Node list: localhost"
 echo "GPUs: All available"
+echo "infl_true for mnist_dnn"
 echo "==============================="
 
 # 获取可用的GPU数量
@@ -50,7 +53,7 @@ echo "Number of GPUs: $n_gpus"
 
 # 创建一个临时文件来存储下一个种子值
 SEED_FILE="/tmp/next_seed_$$"
-echo 30 > $SEED_FILE
+echo 0 > $SEED_FILE
 
 # 定义一个函数来安全地获取下一个种子值
 get_next_seed() {
