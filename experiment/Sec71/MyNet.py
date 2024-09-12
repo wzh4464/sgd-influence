@@ -14,6 +14,21 @@ class NetList(torch.nn.Module):
     def forward(self, x, idx=0):
         return self.models[idx](x)
 
+    def __iter__(self):
+        return iter(self.models)
+
+    def __len__(self):
+        return len(self.models)
+
+    def get_model(self, *indices):
+        model = self
+        for idx in indices:
+            if isinstance(model, NetList):
+                model = model.models[idx]
+            else:
+                raise ValueError("Invalid indices for nested NetList access")
+        return model
+
 
 class LogReg(nn.Module):
     def __init__(self, input_dim):
