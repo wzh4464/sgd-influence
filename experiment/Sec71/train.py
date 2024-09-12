@@ -120,7 +120,7 @@ def test(key, model_type, seed=0, gpu=0):
     num_steps = int(np.ceil(n_tr / batch_size))
     list_of_sgd_models = []
     list_of_counterfactual_models = []
-    list_of_losses = []
+    list_of_losses = [[] for _ in range(n_tr + 1)]  # +1 for the main model
     for n in range(-1, n_tr):
         torch.manual_seed(seed)
         model = net_func()
@@ -162,6 +162,14 @@ def test(key, model_type, seed=0, gpu=0):
                     lr_n *= np.sqrt(c / (c + 1))
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
+                        
+                with torch.no_grad():
+                    z = model(x_val)
+                    current_loss = loss_fn(z, y_val).item()
+                    if n < 0:
+                        list_of_losses[0].append(current_loss)  # 主模型的 loss
+                    else:
+                        list_of_losses[n + 1].append(current_loss)  # 反事实模型的 loss
 
         # save
         if n < 0:
@@ -187,6 +195,7 @@ def test(key, model_type, seed=0, gpu=0):
             "info": info,
             "counterfactual": counterfactual,
             "alpha": alpha,
+            "losses": list_of_losses,
         },
         fn,
     )
