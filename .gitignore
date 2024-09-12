@@ -6,3 +6,4 @@
 **/adult_dnn*
 *.npz
 .vscode/settings.json
+**/mnist_dnn*
