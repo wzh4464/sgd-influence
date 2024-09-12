@@ -120,7 +120,13 @@ def test(key, model_type, seed=0, gpu=0):
     num_steps = int(np.ceil(n_tr / batch_size))
     list_of_sgd_models = []
     list_of_counterfactual_models = []
-    list_of_losses = [[] for _ in range(n_tr + 1)]  # +1 for the main model
+    main_losses = np.zeros(num_epoch * num_steps + 1)
+    # counterfactual_losses = np.zeros((n_tr, num_epoch * num_steps + 1))
+    train_losses = np.zeros(num_epoch * num_steps + 1)  # 用于保存每步的训练损失
+    train_losses[0] = nn.BCEWithLogitsLoss()(net_func()(x_tr), y_tr).item() # 记录初始损失
+
+    val_interval = 20  # 设置验证损失的计算间隔
+
     for n in range(-1, n_tr):
         torch.manual_seed(seed)
         model = net_func()
@@ -139,16 +145,35 @@ def test(key, model_type, seed=0, gpu=0):
 
                 # store model
                 if n < 0:
+                    # 保存 SGD 模型和验证损失（如果符合间隔要求）
                     m = net_func()
                     m.load_state_dict(copy.deepcopy(model.state_dict()))
                     list_of_sgd_models.append(m)
+                    if c % val_interval == 0 or c == num_steps * num_epoch:
+                        with torch.no_grad():
+                            main_losses[c - 1] = loss_fn(model(x_val), y_val).item()
+                else:
+                    # 保存反事实模型和验证损失（如果符合间隔要求）
+                    m = net_func()
+                    m.load_state_dict(copy.deepcopy(model.state_dict()))
+                    list_of_counterfactual_models.append(m)
+                    # if c % val_interval == 0 or c == num_steps * num_epoch:
+                    #     with torch.no_grad():
+                    #         counterfactual_losses[n, c - 1] = loss_fn(
+                    #             model(x_val), y_val
+                    #         ).item()
 
-                # sgd
+                # SGD 优化
                 idx = idx_list[i]
                 b = idx.size
                 idx = np.setdiff1d(idx, skip)
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
+
+                # 记录训练损失
+                train_losses[c] = loss.item()
+
+                # 添加正则化项
                 for p in model.parameters():
                     loss += 0.5 * alpha * (p * p).sum()
                 optimizer.zero_grad()
@@ -157,45 +182,33 @@ def test(key, model_type, seed=0, gpu=0):
                     p.grad.data *= idx.size / b
                 optimizer.step()
 
-                # decay
+                # 学习率衰减
                 if decay:
                     lr_n *= np.sqrt(c / (c + 1))
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
-                        
-                with torch.no_grad():
-                    z = model(x_val)
-                    current_loss = loss_fn(z, y_val).item()
-                    if n < 0:
-                        list_of_losses[0].append(current_loss)  # 主模型的 loss
-                    else:
-                        list_of_losses[n + 1].append(current_loss)  # 反事实模型的 loss
 
-        # save
+        # 最后一步保存模型
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
             list_of_sgd_models.append(m)
+            main_losses[-1] = loss_fn(model(x_val), y_val).item()
         else:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
             list_of_counterfactual_models.append(m)
 
-        # eval
-        z = model(x_val)
-        list_of_losses.append(loss_fn(z, y_val).item())
-    list_of_losses = np.array(list_of_losses)
-
-    # save
-    models = NetList(list_of_sgd_models)
-    counterfactual = NetList(list_of_counterfactual_models)
+    # 保存所有数据
     joblib.dump(
         {
-            "models": models,
+            "models": NetList(list_of_sgd_models),
             "info": info,
-            "counterfactual": counterfactual,
+            "counterfactual": NetList(list_of_counterfactual_models),
             "alpha": alpha,
-            "losses": list_of_losses,
+            "main_losses": main_losses,
+            # "counterfactual_losses": counterfactual_losses,
+            "train_losses": train_losses,  # 保存训练损失
         },
         fn,
     )
