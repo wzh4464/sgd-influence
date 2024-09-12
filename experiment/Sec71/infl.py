@@ -366,8 +366,23 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
     u = compute_gradient(x_val, y_val, model, loss_fn)
     u = [uu.to(device) for uu in u]
 
+    # report = "实验数据分析报告\n" + "================\n\n"
+    # # 1. 训练信息
+    # report += "1. 训练信息\n"
+    # report += "-------------\n"
+    # epochs = len(res['info']) / (200 / len(res['info'][0]['idx']))
+    # report += f"总训练轮数 (epochs): {epochs:.1f}\n"
+    # report += f"每轮步数: {200 / len(res['info'][0]['idx']):.0f}\n"
+    # report += f"批次大小: {len(res['info'][0]['idx'])}\n"
+    # report += f"总训练步数: {len(res['info'])}\n\n"
+    
+    steps_per_epoch = (n_tr + batch_size - 1) // batch_size # include probably not full batch
+    total_steps = custom_epoch * steps_per_epoch # total steps
+    
+    assert total_steps <= len(res["info"])
+    
     # model list
-    models = [m.to(device) for m in res["models"].models]
+    models = [m.to(device) for m in res["models"].models[:total_steps]]
 
     # influence
     alpha = res["alpha"]
@@ -375,7 +390,7 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
     infl = np.zeros(n_tr)
     
     # 使用自定义的 epoch 数量
-    for t in range(min(custom_epoch, len(models)) - 1, -1, -1):
+    for t in range(total_steps - 1, -1, -1):
         m = models[t]
         m.eval()
         idx, lr = info[t]["idx"], info[t]["lr"]
