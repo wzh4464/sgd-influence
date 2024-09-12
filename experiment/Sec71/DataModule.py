@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from sklearn.datasets import fetch_20newsgroups
@@ -124,26 +125,32 @@ class DataModule:
 
 
 class MnistModule(DataModule):
-    def __init__(self, normalize=True, append_one=False):
-        DataModule.__init__(self, normalize, append_one)
-        from tensorflow.examples.tutorials.mnist import input_data
+    def __init__(self, normalize=True, append_one=False, data_path="data/mnist.npz"):
+        import tensorflow as tf
 
-        self.input_data = input_data
+        super().__init__(normalize, append_one)
+        self.mnist = tf.keras.datasets.mnist
+        self.data_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), data_path
+        )
 
     def load(self):
-        mnist = self.input_data.read_data_sets("/tmp/data/", one_hot=True)
-        ytr = mnist.train.labels
-        xtr = mnist.train.images
-        xtr1 = xtr[ytr[:, 1] > 0, :]
-        xtr7 = xtr[ytr[:, 7] > 0, :]
+        (x_train, y_train), (_, _) = self.mnist.load_data(path=self.data_path)
+
+        x_train = x_train.reshape(-1, 28 * 28) / 255.0
+
+        xtr1 = x_train[y_train == 1]
+        xtr7 = x_train[y_train == 7]
+
         x = np.r_[xtr1, xtr7]
         y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+
         return x, y
 
 
 class NewsModule(DataModule):
     def __init__(self, normalize=True, append_one=False):
-        DataModule.__init__(self, normalize, append_one)
+        super().__init__(normalize, append_one)
 
     def load(self):
         categories = ["comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware"]
@@ -170,13 +177,19 @@ class NewsModule(DataModule):
 
 
 class AdultModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, csv_path="./data"):
-        DataModule.__init__(self, normalize, append_one)
-        self.csv_path = csv_path
+    def __init__(self, normalize=True, append_one=False, csv_path="data"):
+        super().__init__(normalize, append_one)
+        self.csv_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), csv_path
+        )
 
     def load(self):
-        train = pd.read_csv(f"{self.csv_path}/adult-training.csv", names=columns)
-        test = pd.read_csv(f"{self.csv_path}/adult-test.csv", names=columns, skiprows=1)
+        train = pd.read_csv(
+            os.path.join(self.csv_path, "adult-training.csv"), names=columns
+        )
+        test = pd.read_csv(
+            os.path.join(self.csv_path, "adult-test.csv"), names=columns, skiprows=1
+        )
         df = pd.concat([train, test], ignore_index=True)
 
         # preprocess
@@ -184,16 +197,16 @@ class AdultModule(DataModule):
         df["Income"] = df["Income"].apply(
             lambda x: 1 if x in (" >50K", " >50K.") else 0
         )
-        df["Workclass"].fillna(" 0", inplace=True)
-        df["Workclass"].replace(" Without-pay", " Never-worked", inplace=True)
+        df["Workclass"] = df["Workclass"].fillna(" 0")
+        df["Workclass"] = df["Workclass"].replace(" Never-worked", " 0")
         df["fnlgwt"] = df["fnlgwt"].apply(lambda x: np.log1p(x))
         df["Education"] = df["Education"].apply(primary)
-        df["Marital Status"].replace(
-            " Married-AF-spouse", " Married-civ-spouse", inplace=True
+        df["Marital Status"] = df["Marital Status"].replace(
+            " Married-AF-spouse", " Married-civ-spouse"
         )
-        df["Occupation"].fillna(" 0", inplace=True)
-        df["Occupation"].replace(" Armed-Forces", " 0", inplace=True)
-        df["Native country"].fillna(" 0", inplace=True)
+        df["Occupation"] = df["Occupation"].fillna(" 0")
+        df["Occupation"] = df["Occupation"].replace(" Armed-Forces", " 0")
+        df["Native country"] = df["Native country"].fillna(" 0")
         df["Native country"] = df["Native country"].apply(native)
 
         # one-hot encoding
