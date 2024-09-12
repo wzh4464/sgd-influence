@@ -43,7 +43,7 @@ def settings_dnn(key):
         n_tr, n_val, n_test = 200, 200, 200
         m = [8, 8]
         alpha = 0.001
-        lr, decay, num_epoch, batch_size = 0.1, False, 10, 20
+        lr, decay, num_epoch, batch_size = 0.1, False, 12, 20
         return (
             module,
             (n_tr, n_val, n_test),
