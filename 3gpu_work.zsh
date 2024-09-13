@@ -13,7 +13,26 @@ TRAIN_SCRIPT="$WORK_DIR/infl.py"
 
 # 定义 Python 执行命令作为变量
 # PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0'
-PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --type true'
+# PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --type lie'
+# 定义多个 Python 命令按顺序执行
+PYTHON_COMMAND='
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model "$MODEL" --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model "$MODEL" --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type lie --seed "$seed" --gpu 0
+'
+# PYTHON_COMMAND='
+#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type true --seed "$seed" --gpu 0;
+#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
+#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type icml --seed "$seed" --gpu 0;
+#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type lie --gpu 0 --seed "$seed"
+# '
 
 # 解析命令行参数
 TARGET="mnist"
@@ -44,7 +63,6 @@ echo "Job started at: $(date)"
 echo "Job ID: $$"
 echo "Node list: localhost"
 echo "GPUs: All available"
-echo "infl_true for mnist_dnn"
 echo "==============================="
 
 # 获取可用的GPU数量
