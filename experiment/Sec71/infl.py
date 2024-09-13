@@ -418,35 +418,40 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
 
     return infl
 
-import pandas as pd
 
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=False):
+    import os
+    import pandas as pd
+    import joblib
+
     dn = f"./{key}_{model_type}"
-    csv_fn = f"{dn}/infl_lie_{seed}.csv"
-    
-    # 计算不同 epoch 的结果
-    infl_0 = infl_lie_helper(key, model_type, 0, seed, gpu)
-    infl_4 = infl_lie_helper(key, model_type, 4, seed, gpu)
-    infl_8 = infl_lie_helper(key, model_type, 8, seed, gpu)
-    infl_12 = infl_lie_helper(key, model_type, 12, seed, gpu)
-    
-    # 计算差值
-    diff_0_4 = infl_4 - infl_0
-    diff_4_8 = infl_8 - infl_4
-    diff_8_12 = infl_12 - infl_8
-    
-    # 保存为 CSV
+    os.makedirs(dn, exist_ok=True)
+    csv_fn = f"{dn}/infl_lie_full_{seed}.csv"
+    max_epoch = 12  # Assuming epochs from 0 to 12 inclusive
+
+    # Compute infl values for each epoch
+    infl_list = []
+    for epoch in range(max_epoch + 1):  # Epochs from 0 to 12
+        infl = infl_lie_helper(key, model_type, epoch, seed, gpu)
+        infl_list.append(infl)
+
+    # Compute differences between consecutive epochs
+    diffs = []
+    diff_dict = {}
+    for i in range(1, len(infl_list)):
+        diff = infl_list[i] - infl_list[i - 1]
+        diffs.append(diff)
+        diff_key = f"diff_{i-1}_{i}"
+        diff_dict[diff_key] = diff
+
+    # Save differences to CSV
     if is_csv:
-        # 创建 DataFrame
-        df = pd.DataFrame({
-            'diff_0_4': diff_0_4,
-            'diff_4_8': diff_4_8,
-            'diff_8_12': diff_8_12
-        })
+        df = pd.DataFrame(diff_dict)
         df.to_csv(csv_fn, index=False)
 
-    joblib.dump([infl_0, infl_4, infl_8, infl_12], f"{dn}/infl_lie_%03d.dat" % seed, compress=9)
-    
+    # Save the full infl_list to a file
+    joblib.dump(infl_list, f"{dn}/infl_lie_full_%03d.dat" % seed, compress=9)
+
     print(f"Results saved to {csv_fn}")
 
 if __name__ == "__main__":
