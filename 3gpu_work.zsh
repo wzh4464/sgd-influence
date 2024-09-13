@@ -16,15 +16,15 @@ TRAIN_SCRIPT="$WORK_DIR/infl.py"
 # PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --type lie'
 # 定义多个 Python 命令按顺序执行
 PYTHON_COMMAND='
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model "$MODEL" --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type icml --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model "$MODEL" --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type true --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type icml --seed "$seed" --gpu 0;
     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type lie --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model "$MODEL" --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type icml --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model "$MODEL" --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type true --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
+    # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type icml --seed "$seed" --gpu 0;
     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type lie --seed "$seed" --gpu 0
 '
 # PYTHON_COMMAND='
