@@ -65,6 +65,7 @@ def train_and_save(
     custom_n_val: int = None,
     custom_n_test: int = None,
     custom_num_epoch: int = None,
+    custom_batch_size: int = None,
 ) -> Dict[str, Any]:
     dn = f"./{key}_{model_type}"
     fn = f"{dn}/sgd{seed:03d}.dat"
@@ -83,6 +84,8 @@ def train_and_save(
         data_sizes["n_test"] = custom_n_test
     if custom_num_epoch:
         training_params["num_epoch"] = custom_num_epoch
+    if custom_batch_size:
+        training_params["batch_size"] = custom_batch_size
 
     z_tr, z_val, _ = module.fetch(
         data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
@@ -223,6 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_val", type=int, help="number of validation samples")
     parser.add_argument("--n_test", type=int, help="number of test samples")
     parser.add_argument("--num_epoch", type=int, help="number of epochs")
+    parser.add_argument("--batch_size", type=int, help="batch size")
     args = parser.parse_args()
 
     assert args.target in ["mnist", "20news", "adult", "cifar"]
@@ -238,6 +242,7 @@ if __name__ == "__main__":
             custom_n_val=args.n_val,
             custom_n_test=args.n_test,
             custom_num_epoch=args.num_epoch,
+            custom_batch_size=args.batch_size,
         )
     else:
         for seed in range(100):
@@ -250,4 +255,5 @@ if __name__ == "__main__":
                 custom_n_val=args.n_val,
                 custom_n_test=args.n_test,
                 custom_num_epoch=args.num_epoch,
+                custom_batch_size=args.batch_size,
             )
