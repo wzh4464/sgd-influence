@@ -5,6 +5,9 @@ from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+import pickle
+from filelock import FileLock
 
 columns = [
     "Age",
@@ -91,89 +94,143 @@ def native(country):
 
 
 class DataModule:
-    def __init__(self, normalize=True, append_one=True):
+    def __init__(self, normalize=True, append_one=True, data_dir=None):
         self.normalize = normalize
         self.append_one = append_one
+
+        # Use the specified data_dir or default to 'data' in the script's directory
+        if data_dir is None:
+            self.data_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "data"
+            )
+        else:
+            self.data_dir = data_dir
+
+        # Ensure the data directory exists
+        os.makedirs(self.data_dir, exist_ok=True)
 
     def load(self):
         pass
 
     def fetch(self, n_tr, n_val, n_test, seed=0):
-        x, y = self.load()
-
-        # split data
-        x_tr, x_val, y_tr, y_val = train_test_split(
-            x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+        cache_file = os.path.join(
+            self.data_dir,
+            f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
         )
-        x_val, x_test, y_val, y_test = train_test_split(
-            x_val, y_val, train_size=n_val, test_size=n_test, random_state=seed + 1
-        )
+        lock_file = cache_file + ".lock"
 
-        # process x
-        if self.normalize:
-            scaler = StandardScaler()
-            scaler.fit(x_tr)
-            x_tr = scaler.transform(x_tr)
-            x_val = scaler.transform(x_val)
-            x_test = scaler.transform(x_test)
-        if self.append_one:
-            x_tr = np.c_[x_tr, np.ones(n_tr)]
-            x_val = np.c_[x_val, np.ones(n_val)]
-            x_test = np.c_[x_test, np.ones(n_test)]
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
 
-        return (x_tr, y_tr), (x_val, y_val), (x_test, y_test)
+            x, y = self.load()
+
+            # split data
+            x_tr, x_val, y_tr, y_val = train_test_split(
+                x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+            )
+            x_val, x_test, y_val, y_test = train_test_split(
+                x_val, y_val, train_size=n_val, test_size=n_test, random_state=seed + 1
+            )
+
+            # process x
+            if self.normalize:
+                scaler = StandardScaler()
+                scaler.fit(x_tr)
+                x_tr = scaler.transform(x_tr)
+                x_val = scaler.transform(x_val)
+                x_test = scaler.transform(x_test)
+            if self.append_one:
+                x_tr = np.c_[x_tr, np.ones(n_tr)]
+                x_val = np.c_[x_val, np.ones(n_val)]
+                x_test = np.c_[x_test, np.ones(n_test)]
+
+            result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
 
 
 class MnistModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_path="data/mnist.npz"):
-        import tensorflow as tf
-
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
+        super().__init__(normalize, append_one, data_dir)
         self.mnist = tf.keras.datasets.mnist
-        self.data_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), data_path
-        )
 
     def load(self):
-        (x_train, y_train), (_, _) = self.mnist.load_data(path=self.data_path)
+        cache_file = os.path.join(self.data_dir, "mnist_processed_data.pkl")
+        lock_file = cache_file + ".lock"
 
-        x_train = x_train.reshape(-1, 28 * 28) / 255.0
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
 
-        xtr1 = x_train[y_train == 1]
-        xtr7 = x_train[y_train == 7]
+            # Use TensorFlow to load MNIST data
+            (x_train, y_train), (_, _) = self.mnist.load_data()
 
-        x = np.r_[xtr1, xtr7]
-        y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+            x_train = x_train.reshape(-1, 28 * 28) / 255.0
 
-        return x, y
+            xtr1 = x_train[y_train == 1]
+            xtr7 = x_train[y_train == 7]
+
+            x = np.r_[xtr1, xtr7]
+            y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
 
 
 class NewsModule(DataModule):
-    def __init__(self, normalize=True, append_one=False):
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
+        if data_dir is None:
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        super().__init__(normalize, append_one, data_dir)
 
     def load(self):
-        categories = ["comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware"]
-        newsgroups_train = fetch_20newsgroups(
-            subset="train",
-            remove=("headers", "footers", "quotes"),
-            categories=categories,
-        )
-        newsgroups_test = fetch_20newsgroups(
-            subset="test",
-            remove=("headers", "footers", "quotes"),
-            categories=categories,
-        )
-        vectorizer = TfidfVectorizer(stop_words="english", min_df=0.001, max_df=0.20)
-        vectors = vectorizer.fit_transform(newsgroups_train.data)
-        vectors_test = vectorizer.transform(newsgroups_test.data)
-        x1 = vectors
-        y1 = newsgroups_train.target
-        x2 = vectors_test
-        y2 = newsgroups_test.target
-        x = np.array(np.r_[x1.todense(), x2.todense()])
-        y = np.r_[y1, y2]
-        return x, y
+        cache_file = os.path.join(self.data_dir, "news_data.pkl")
+        lock_file = cache_file + ".lock"
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            categories = ["comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware"]
+            newsgroups_train = fetch_20newsgroups(
+                subset="train",
+                remove=("headers", "footers", "quotes"),
+                categories=categories,
+            )
+            newsgroups_test = fetch_20newsgroups(
+                subset="test",
+                remove=("headers", "footers", "quotes"),
+                categories=categories,
+            )
+            vectorizer = TfidfVectorizer(
+                stop_words="english", min_df=0.001, max_df=0.20
+            )
+            vectors = vectorizer.fit_transform(newsgroups_train.data)
+            vectors_test = vectorizer.transform(newsgroups_test.data)
+            x1 = vectors
+            y1 = newsgroups_train.target
+            x2 = vectors_test
+            y2 = newsgroups_test.target
+            x = np.array(np.r_[x1.todense(), x2.todense()])
+            y = np.r_[y1, y2]
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
 
 
 class AdultModule(DataModule):
@@ -221,3 +278,55 @@ class AdultModule(DataModule):
         x = df.drop(["Income"], axis=1).values
         y = df["Income"].values
         return x, y
+
+
+class CifarModule(DataModule):
+    def __init__(
+        self, normalize=True, append_one=False, cifar_version=10, data_dir=None
+    ):
+        super().__init__(normalize, append_one, data_dir)
+        assert cifar_version in [10, 100], "CIFAR version must be either 10 or 100"
+        self.cifar_version = cifar_version
+
+    def load(self):
+        cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
+        lock_file = cache_file + ".lock"
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            if self.cifar_version == 10:
+                (x_train, y_train), (x_test, y_test) = (
+                    tf.keras.datasets.cifar10.load_data()
+                )
+            else:  # CIFAR-100
+                (x_train, y_train), (x_test, y_test) = (
+                    tf.keras.datasets.cifar100.load_data()
+                )
+
+            # Combine train and test data
+            x = np.vstack((x_train, x_test))
+            y = np.vstack((y_train, y_test)).squeeze()
+
+            # Flatten the images
+            x = x.reshape(x.shape[0], -1)
+
+            # Normalize pixel values to be between 0 and 1
+            x = x.astype("float32") / 255.0
+
+            # For binary classification, we'll use the first two classes
+            mask = (y == 0) | (y == 1)
+            x = x[mask]
+            y = y[mask]
+
+            # Make labels 0 and 1
+            y = (y == 1).astype(int)
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
