@@ -8,3 +8,5 @@
 .vscode/settings.json
 **/mnist_dnn*
 **/20news_*
+*.lock
+*.pkl
