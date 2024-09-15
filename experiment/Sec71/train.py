@@ -130,7 +130,7 @@ def test(key, model_type, seed=0, gpu=0):
     epoch_steps = (n_tr + batch_size - 1) // batch_size  # 设置验证损失的计算间隔
     # print(f"epoch_steps: {epoch_steps}")
 
-    for n in range(-1, n_tr):
+    for n in range(-1, n_test):
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
