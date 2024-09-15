@@ -3,7 +3,7 @@
 # Created Date: Thursday, September 12th 2024
 # Author: Zihan
 # -----
-# Last Modified: Thursday, 12th September 2024 3:51:38 pm
+# Last Modified: Saturday, 14th September 2024 10:02:59 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -55,8 +55,9 @@ def generate_loss_plot(file_path):
     fig, ax = plt.subplots(figsize=(12, 8))
 
     # Calculate epochs and steps
-    epochs = len(res["info"]) / (200 / len(res["info"][0]["idx"]))
-    steps_per_epoch = 200 / len(res["info"][0]["idx"])
+    steps = len(res['info'])
+    epochs =len(res['main_losses']) - 1
+    steps_per_epoch = steps / epochs
 
     # Training loss plot
     x_train = np.arange(len(res["train_losses"])) / steps_per_epoch
