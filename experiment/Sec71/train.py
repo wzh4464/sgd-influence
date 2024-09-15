@@ -213,6 +213,10 @@ def test(key, model_type, seed=0, gpu=0):
             "main_losses": main_losses,
             # "counterfactual_losses": counterfactual_losses,
             "train_losses": train_losses,  # 保存训练损失
+            "seed": seed,
+            "n_tr": n_tr,
+            "n_val": n_val,
+            "n_test": n_test,
         },
         fn,
     )
