@@ -9,8 +9,8 @@ import torch.nn as nn
 from typing import Tuple, Dict, Any
 
 # Assuming these imports are from local files
-from DataModule import MnistModule, NewsModule, AdultModule
-from MyNet import LogReg, DNN, NetList
+from DataModule import MnistModule, NewsModule, AdultModule, CifarModule
+from MyNet import LogReg, DNN, NetList, CifarCNN
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -33,6 +33,10 @@ def get_data_module(
         module = MnistModule()
         data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
         training_params = {"lr": 0.1, "decay": True, "num_epoch": 5, "batch_size": 5}
+    elif key == "cifar":
+        module = CifarModule()
+        data_sizes = {"n_tr": 5000, "n_val": 1000, "n_test": 1000}
+        training_params = {"lr": 0.1, "decay": True, "num_epoch": 10, "batch_size": 64}
     else:
         raise ValueError(f"Unsupported dataset: {key}")
 
@@ -45,6 +49,8 @@ def get_model(model_type: str, input_dim: int, device: str) -> nn.Module:
         return LogReg(input_dim).to(device)
     elif model_type == "dnn":
         return DNN(input_dim).to(device)
+    elif model_type == "cnn":
+        return CifarCNN().to(device)
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
@@ -88,8 +94,8 @@ def train_and_save(
         model = LogisticRegressionCV(random_state=seed, fit_intercept=False, cv=5)
         model.fit(x_tr, y_tr)
         alpha = 1 / (model.C_[0] * data_sizes["n_tr"])
-    elif model_type == "dnn":
-        alpha = 0.001  # You might want to tune this for DNN
+    elif model_type in {"dnn", "cnn"}:
+        alpha = 0.001  # You might want to tune this for DNN/CNN
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
@@ -98,6 +104,11 @@ def train_and_save(
     y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
     y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
+
+    # Reshape for CNN if necessary
+    if model_type == "cnn":
+        x_tr = x_tr.view(-1, 3, 32, 32)
+        x_val = x_val.view(-1, 3, 32, 32)
 
     # Training setup
     net_func = lambda: get_model(model_type, x_tr.shape[1], device)
@@ -113,7 +124,7 @@ def train_and_save(
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.SGD(
-            model.parameters(), training_params["lr"], momentum=0.0
+            model.parameters(), lr=training_params["lr"], momentum=0.0
         )
         lr_n = training_params["lr"]
         skip = [n]
@@ -214,8 +225,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_epoch", type=int, help="number of epochs")
     args = parser.parse_args()
 
-    assert args.target in ["mnist", "20news", "adult"]
-    assert args.model in ["logreg", "dnn"]
+    assert args.target in ["mnist", "20news", "adult", "cifar"]
+    assert args.model in ["logreg", "dnn", "cnn"]
 
     if args.seed >= 0:
         train_and_save(
