@@ -7,3 +7,4 @@
 *.npz
 .vscode/settings.json
 **/mnist_dnn*
+**/20news_*
