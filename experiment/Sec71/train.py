@@ -159,7 +159,8 @@ def test(key, model_type, seed=0, gpu=0):
                     # 保存反事实模型和验证损失（如果符合间隔要求）
                     m = net_func()
                     m.load_state_dict(copy.deepcopy(model.state_dict()))
-                    list_of_counterfactual_models[n].models.append(m)
+                    if c % epoch_steps == 0 or c == num_steps * num_epoch: # 每个epoch保存一次
+                        list_of_counterfactual_models[n].models.append(m)
                     # if c % val_interval == 0 or c == num_steps * num_epoch:
                     #     with torch.no_grad():
                     #         counterfactual_losses[n, c - 1] = loss_fn(
