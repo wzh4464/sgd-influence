@@ -208,7 +208,7 @@ def train_and_save(
     }
 
     # Save data
-    joblib.dump(data_to_save, fn)
+    torch.save(data_to_save, fn)
 
     return data_to_save
 
