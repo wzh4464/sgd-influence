@@ -126,7 +126,9 @@ def test(key, model_type, seed=0, gpu=0):
     train_losses[0] = nn.BCEWithLogitsLoss()(net_func()(x_tr), y_tr).item() # 记录初始损失
     # main_losses.append(train_losses[0])
 
-    val_interval = 10  # 设置验证损失的计算间隔
+    # val_interval = 10  # 设置验证损失的计算间隔
+    epoch_steps = (n_tr + batch_size - 1) // batch_size  # 设置验证损失的计算间隔
+    # print(f"epoch_steps: {epoch_steps}")
 
     for n in range(-1, n_tr):
         torch.manual_seed(seed)
@@ -150,7 +152,7 @@ def test(key, model_type, seed=0, gpu=0):
                     m = net_func()
                     m.load_state_dict(copy.deepcopy(model.state_dict()))
                     list_of_sgd_models.append(m)
-                    if c % val_interval == 0 or c == num_steps * num_epoch:
+                    if c % epoch_steps == 0 or c == num_steps * num_epoch:
                         with torch.no_grad():
                             main_losses.append(loss_fn(model(x_val), y_val).item())
                 else:
