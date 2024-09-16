@@ -175,6 +175,7 @@ def train_and_save(
                 m = net_func()
                 m.load_state_dict(copy.deepcopy(model.state_dict()))
                 if n < 0:
+                    m.to('cpu')  # 将模型移至CPU内存
                     list_of_sgd_models.append(m)
                     if (
                         c % num_steps == 0
@@ -221,6 +222,7 @@ def train_and_save(
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
+            m.to('cpu')  # 将模型移至CPU内存
             list_of_sgd_models.append(m)
             main_losses.append(loss_fn(model(x_val), y_val).item())
             with torch.no_grad():
