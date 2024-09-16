@@ -7,6 +7,14 @@ import joblib
 import torch
 import torch.nn as nn
 from typing import Tuple, Dict, Any
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    filename="data_module.log",  # 指定日志文件
+    filemode="a",
+)  # 追加模式
 
 # Assuming these imports are from local files
 from DataModule import MnistModule, NewsModule, AdultModule, CifarModule

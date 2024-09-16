@@ -8,6 +8,12 @@ from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 import pickle
 from filelock import FileLock
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 columns = [
     "Age",
@@ -110,7 +116,7 @@ class DataModule:
         os.makedirs(self.data_dir, exist_ok=True)
 
     def load(self):
-        pass
+        raise NotImplementedError
 
     def fetch(self, n_tr, n_val, n_test, seed=0):
         cache_file = os.path.join(
@@ -118,40 +124,78 @@ class DataModule:
             f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
         )
         lock_file = cache_file + ".lock"
+        logging.info(
+            f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
+        )
+        logging.info(f"Cache file: {cache_file}")
 
         with FileLock(lock_file):
             if os.path.exists(cache_file):
-                with open(cache_file, "rb") as f:
-                    return pickle.load(f)
+                logging.info(f"Cache file found. Attempting to load from {cache_file}")
+                try:
+                    with open(cache_file, "rb") as f:
+                        result = pickle.load(f)
+                    logging.info("Successfully loaded data from cache")
+                    return result
+                except (EOFError, pickle.UnpicklingError) as e:
+                    logging.error(f"Error loading cache file: {str(e)}")
+                    logging.info("Removing corrupted cache file and regenerating data")
+                    os.remove(cache_file)
+                except Exception as e:
+                    logging.error(f"Unexpected error loading cache file: {str(e)}")
+                    raise
 
-            x, y = self.load()
+            logging.info("Cache not found or corrupted. Loading and processing data.")
+            try:
+                x, y = self.load()
+                logging.info(
+                    f"Data loaded. Shape of x: {x.shape}, Shape of y: {y.shape}"
+                )
 
-            # split data
-            x_tr, x_val, y_tr, y_val = train_test_split(
-                x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
-            )
-            x_val, x_test, y_val, y_test = train_test_split(
-                x_val, y_val, train_size=n_val, test_size=n_test, random_state=seed + 1
-            )
+                # split data
+                x_tr, x_val, y_tr, y_val = train_test_split(
+                    x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+                )
+                x_val, x_test, y_val, y_test = train_test_split(
+                    x_val,
+                    y_val,
+                    train_size=n_val,
+                    test_size=n_test,
+                    random_state=seed + 1,
+                )
+                logging.info(
+                    f"Data split completed. Shapes: x_tr: {x_tr.shape}, x_val: {x_val.shape}, x_test: {x_test.shape}"
+                )
 
-            # process x
-            if self.normalize:
-                scaler = StandardScaler()
-                scaler.fit(x_tr)
-                x_tr = scaler.transform(x_tr)
-                x_val = scaler.transform(x_val)
-                x_test = scaler.transform(x_test)
-            if self.append_one:
-                x_tr = np.c_[x_tr, np.ones(n_tr)]
-                x_val = np.c_[x_val, np.ones(n_val)]
-                x_test = np.c_[x_test, np.ones(n_test)]
+                # process x
+                if self.normalize:
+                    logging.info("Normalizing data")
+                    scaler = StandardScaler()
+                    scaler.fit(x_tr)
+                    x_tr = scaler.transform(x_tr)
+                    x_val = scaler.transform(x_val)
+                    x_test = scaler.transform(x_test)
 
-            result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
+                if self.append_one:
+                    logging.info("Appending ones to data")
+                    x_tr = np.c_[x_tr, np.ones(n_tr)]
+                    x_val = np.c_[x_val, np.ones(n_val)]
+                    x_test = np.c_[x_test, np.ones(n_test)]
 
-            with open(cache_file, "wb") as f:
-                pickle.dump(result, f)
+                result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
 
-            return result
+                logging.info(f"Saving processed data to cache file: {cache_file}")
+                with open(cache_file, "wb") as f:
+                    pickle.dump(result, f)
+                logging.info("Data successfully saved to cache")
+
+                return result
+
+            except Exception as e:
+                logging.error(f"Error in data processing: {str(e)}")
+                if os.path.exists(cache_file):
+                    os.remove(cache_file)
+                raise
 
 
 class MnistModule(DataModule):
