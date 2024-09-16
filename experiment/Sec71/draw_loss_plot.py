@@ -3,7 +3,7 @@
 # Created Date: Thursday, September 12th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 14th September 2024 10:02:59 pm
+# Last Modified: Sunday, 15th September 2024 4:51:16 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -12,42 +12,64 @@
 ###
 
 import numpy as np
-import pandas as pd
-import scipy.stats as stats
-import joblib
-import pickle
-from matplotlib import pyplot as plt
 import torch
-import torch.nn as nn
+from matplotlib import pyplot as plt
 import sys
-from typing import Dict, Any
 import os
 from multiprocessing import Pool
 import argparse
 
 # 导入自定义模块
 import MyNet
-from MyNet import NetList, DNN
+from MyNet import NetList, LogReg, DNN, CifarCNN
+import warnings
 
+# no future warning
+warnings.simplefilter(action="ignore", category=FutureWarning)
 # 将自定义类添加到全局命名空间
 sys.modules["MyNet"] = sys.modules[__name__]
 
 
-def load_data(file_path):
+def load_data(file_path: str, device: str = "cpu"):
     try:
-        return joblib.load(file_path)
+        data = torch.load(file_path, map_location=device)
+
+        # 处理模型
+        if isinstance(data.get("models"), NetList):
+            data["models"] = NetList(
+                [model.to(device) for model in data["models"].models]
+            )
+
+        # 处理反事实模型
+        if isinstance(data.get("counterfactual"), list) and all(
+            isinstance(item, NetList) for item in data["counterfactual"]
+        ):
+            data["counterfactual"] = [
+                NetList([model.to(device) for model in netlist.models])
+                for netlist in data["counterfactual"]
+            ]
+
+        return data
     except Exception as e:
-        print(f"Joblib 加载失败: {e}")
-        try:
-            with open(file_path, "rb") as f:
-                return pickle.load(f)
-        except Exception as e:
-            print(f"Pickle 加载失败: {e}")
-            return None
+        print(f"无法加载数据: {file_path}")
+        print(f"错误: {e}")
+        return None
 
 
-def generate_loss_plot(file_path):
-    res = load_data(file_path)
+def get_model_type(model):
+    if isinstance(model, LogReg):
+        return "LogReg"
+    elif isinstance(model, DNN):
+        return "DNN"
+    elif isinstance(model, CifarCNN):
+        return "CifarCNN"
+    else:
+        return "Unknown"
+
+
+def generate_loss_plot(args):
+    file_path, device = args
+    res = load_data(file_path, device)
     if res is None:
         print(f"无法加载数据: {file_path}")
         return
@@ -55,8 +77,8 @@ def generate_loss_plot(file_path):
     fig, ax = plt.subplots(figsize=(12, 8))
 
     # Calculate epochs and steps
-    steps = len(res['info'])
-    epochs =len(res['main_losses']) - 1
+    steps = len(res["info"])
+    epochs = len(res["main_losses"]) - 1
     steps_per_epoch = steps / epochs
 
     # Training loss plot
@@ -67,8 +89,13 @@ def generate_loss_plot(file_path):
     x_main = np.arange(len(res["main_losses"]))
     ax.plot(x_main, res["main_losses"], label="Main Model Loss", alpha=0.7)
 
+    # Get model type
+    model_type = get_model_type(res["models"].models[0])
+
     # Set labels and title
-    ax.set_title(f"Losses vs. Epochs - {os.path.basename(file_path)}", fontsize=16)
+    ax.set_title(
+        f"Losses vs. Epochs - {os.path.basename(file_path)} ({model_type})", fontsize=16
+    )
     ax.set_xlabel("Epochs", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
     ax.grid(True, linestyle="--", alpha=0.7)
@@ -76,6 +103,7 @@ def generate_loss_plot(file_path):
 
     # Add text with additional information
     info_text = (
+        f"Model Type: {model_type}\n"
         f"Total Epochs: {epochs:.1f}\n"
         f"Steps per Epoch: {steps_per_epoch:.0f}\n"
         f"Batch Size: {len(res['info'][0]['idx'])}\n"
@@ -93,21 +121,21 @@ def generate_loss_plot(file_path):
     )
 
     plt.tight_layout()
-    save_path = file_path.replace(".dat", "_loss.png")
+    save_path = file_path.replace(".dat", f"_loss_{model_type}.png")
     plt.savefig(save_path, dpi=300)
     plt.close()
     print(f"Loss plot saved to: {save_path}")
 
 
-def main(base_path, num_cpus):
+def main(base_path: str, num_cpus: int, device: str):
     file_paths = [os.path.join(base_path, f"sgd{i:03d}.dat") for i in range(100)]
-
     print(f"处理路径: {base_path}")
     print(f"使用 {num_cpus} 个 CPU 核心处理数据...")
+    print(f"使用设备: {device}")
 
     # 使用指定数量的核心并行处理
     with Pool(num_cpus) as p:
-        p.map(generate_loss_plot, file_paths)
+        p.map(generate_loss_plot, [(fp, device) for fp in file_paths])
 
     print("所有损失图生成完成。")
 
@@ -120,9 +148,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cpus", type=int, default=16, help="使用的CPU核心数（默认：16）"
     )
+    parser.add_argument(
+        "--device", type=str, default="cpu", help="使用的设备（默认：cpu）"
+    )
     args = parser.parse_args()
 
-    main(args.path, args.cpus)
+    main(args.path, args.cpus, args.device)
 
 # 运行示例命令：
-# python draw_loss_plot.py --path /home/zihan/codes/sgd-influence/experiment/Sec71/mnist_dnn/ --cpus 8
+# python draw_loss_plot.py --path /home/zihan/codes/sgd-influence/experiment/Sec71/cifar_cnn/ --cpus 8 --device cuda:0
