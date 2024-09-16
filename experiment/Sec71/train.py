@@ -152,9 +152,14 @@ def train_and_save(
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
+        # Training setup
         optimizer = torch.optim.SGD(
-            model.parameters(), lr=training_params["lr"], momentum=0.0
+            model.parameters(),
+            lr=0.01,
+            momentum=0.0,
+            weight_decay=1e-4,  # 学习率变小，加入L2正则化
         )
+
         lr_n = training_params["lr"]
         skip = [n]
         info = []
@@ -175,7 +180,7 @@ def train_and_save(
                 m = net_func()
                 m.load_state_dict(copy.deepcopy(model.state_dict()))
                 if n < 0:
-                    m.to('cpu')  # 将模型移至CPU内存
+                    m.to("cpu")  # 将模型移至CPU内存
                     list_of_sgd_models.append(m)
                     if (
                         c % num_steps == 0
@@ -222,7 +227,7 @@ def train_and_save(
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to('cpu')  # 将模型移至CPU内存
+            m.to("cpu")  # 将模型移至CPU内存
             list_of_sgd_models.append(m)
             main_losses.append(loss_fn(model(x_val), y_val).item())
             with torch.no_grad():
