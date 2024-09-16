@@ -3,7 +3,7 @@
 # Created Date: Thursday, September 12th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 15th September 2024 4:51:16 pm
+# Last Modified: Sunday, 15th September 2024 5:28:30 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -127,11 +127,17 @@ def generate_loss_plot(args):
     print(f"Loss plot saved to: {save_path}")
 
 
-def main(base_path: str, num_cpus: int, device: str):
-    file_paths = [os.path.join(base_path, f"sgd{i:03d}.dat") for i in range(100)]
+def main(
+    base_path: str, num_cpus: int, device: str, initial_seed: int, final_seed: int
+):
+    file_paths = [
+        os.path.join(base_path, f"sgd{i:03d}.dat")
+        for i in range(initial_seed, final_seed + 1)
+    ]
     print(f"处理路径: {base_path}")
     print(f"使用 {num_cpus} 个 CPU 核心处理数据...")
     print(f"使用设备: {device}")
+    print(f"处理种子范围: {initial_seed} 到 {final_seed}")
 
     # 使用指定数量的核心并行处理
     with Pool(num_cpus) as p:
@@ -151,9 +157,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--device", type=str, default="cpu", help="使用的设备（默认：cpu）"
     )
+    parser.add_argument(
+        "--initial_seed", type=int, default=0, help="起始种子值（默认：0）"
+    )
+    parser.add_argument(
+        "--final_seed", type=int, default=99, help="结束种子值（默认：99）"
+    )
     args = parser.parse_args()
 
-    main(args.path, args.cpus, args.device)
+    main(args.path, args.cpus, args.device, args.initial_seed, args.final_seed)
 
 # 运行示例命令：
-# python draw_loss_plot.py --path /home/zihan/codes/sgd-influence/experiment/Sec71/cifar_cnn/ --cpus 8 --device cuda:0
+# python draw_loss_plot.py --path /home/zihan/codes/sgd-influence/experiment/Sec71/cifar_cnn/ --cpus 8 --device cuda:0 --initial_seed 98 --final_seed 99
