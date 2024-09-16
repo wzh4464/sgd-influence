@@ -76,11 +76,11 @@ class DNN(nn.Module):
         # x = torch.sigmoid(x)
         # x = torch.cat((x, 1 - x), dim=1)
         # return torch.log(x)
-    
+
     def param_diff(self, other):
         """
         Calculate the difference between this model's parameters and another model's parameters.
-        
+
         :param other: Another DNN model to compare with
         :return: A dictionary containing the differences of each parameter
         """
@@ -88,7 +88,9 @@ class DNN(nn.Module):
             raise ValueError("Can only compare with another DNN instance")
 
         diff = {}
-        for (name1, param1), (name2, param2) in zip(self.named_parameters(), other.named_parameters()):
+        for (name1, param1), (name2, param2) in zip(
+            self.named_parameters(), other.named_parameters()
+        ):
             if name1 != name2:
                 raise ValueError(f"Parameter names do not match: {name1} vs {name2}")
             diff[name1] = param1.data - param2.data
@@ -97,7 +99,7 @@ class DNN(nn.Module):
     def param_diff_norm(self, other, norm_type=2):
         """
         Calculate the norm of the difference between this model's parameters and another model's parameters.
-        
+
         :param other: Another DNN model to compare with
         :param norm_type: Type of norm to use (default is L2 norm)
         :return: The norm of the parameter differences
@@ -113,7 +115,7 @@ class DNN(nn.Module):
     def print_param_diff(diff, threshold=1e-6):
         """
         Print the parameter differences, showing only differences above a certain threshold.
-        
+
         :param diff: Dictionary of parameter differences
         :param threshold: Minimum absolute difference to display
         """
@@ -128,17 +130,20 @@ class CifarCNN(nn.Module):
     def __init__(self):
         super(CifarCNN, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
         self.pool = nn.MaxPool2d(2, 2)
         self.fc1 = nn.Linear(128 * 4 * 4, 512)
-        self.fc2 = nn.Linear(512, 1)
         self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(512, 1)
 
     def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = self.pool(torch.relu(self.conv2(x)))
-        x = self.pool(torch.relu(self.conv3(x)))
+        x = self.pool(self.bn1(torch.relu(self.conv1(x))))
+        x = self.pool(self.bn2(torch.relu(self.conv2(x))))
+        x = self.pool(self.bn3(torch.relu(self.conv3(x))))
         x = x.view(-1, 128 * 4 * 4)
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
