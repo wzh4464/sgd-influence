@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 9:21:42 am
+# Last Modified: Monday, 16th September 2024 9:38:16 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -21,13 +21,9 @@ import torch
 import torch.nn as nn
 from typing import Tuple, Dict, Any
 import logging
+import traceback
+from logging_utils import setup_logging
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    filename="data_module.log",  # 指定日志文件
-    filemode="a",
-)  # 追加模式
 
 # Assuming these imports are from local files
 from DataModule import MnistModule, NewsModule, AdultModule, CifarModule
@@ -274,7 +270,7 @@ def train_and_save(
     return data_to_save
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Train Models & Save")
     parser.add_argument("--target", default="adult", type=str, help="target data")
     parser.add_argument("--model", default="logreg", type=str, help="model type")
@@ -293,8 +289,30 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    assert args.target in ["mnist", "20news", "adult", "cifar"]
-    assert args.model in ["logreg", "dnn", "cnn"]
+    # Setup logging
+    logger = setup_logging(f"{args.target}_{args.model}", args.seed)
+
+    try:
+        _validate_arguments(logger, args)
+    except AssertionError as e:
+        logger.error(f"Invalid argument: {str(e)}")
+        logger.error(traceback.format_exc())
+    except Exception as e:
+        logger.error(f"An error occurred during the training process: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
+def _validate_arguments(logger, args):
+    logger.info("Starting the training process")
+    logger.info(f"Arguments: {args}")
+
+    assert args.target in [
+        "mnist",
+        "20news",
+        "adult",
+        "cifar",
+    ], "Invalid target data"
+    assert args.model in ["logreg", "dnn", "cnn"], "Invalid model type"
 
     if args.seed >= 0:
         train_and_save(
@@ -323,3 +341,9 @@ if __name__ == "__main__":
                 custom_batch_size=args.batch_size,
                 compute_counterfactual=args.compute_counterfactual,
             )
+
+    logger.info("Training process completed successfully")
+
+
+if __name__ == "__main__":
+    main()

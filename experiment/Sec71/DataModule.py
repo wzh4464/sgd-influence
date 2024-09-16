@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 9:10:03 am
+# Last Modified: Monday, 16th September 2024 9:57:28 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -22,11 +22,7 @@ import tensorflow as tf
 import pickle
 from filelock import FileLock
 import logging
-
-# 配置日志
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from logging_utils import setup_logging
 
 columns = [
     "Age",
@@ -116,17 +112,19 @@ class DataModule:
     def __init__(self, normalize=True, append_one=True, data_dir=None):
         self.normalize = normalize
         self.append_one = append_one
-
-        # Use the specified data_dir or default to 'data' in the script's directory
         if data_dir is None:
             self.data_dir = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "data"
             )
         else:
             self.data_dir = data_dir
-
-        # Ensure the data directory exists
         os.makedirs(self.data_dir, exist_ok=True)
+
+        # Use the logger configured in the main script
+        self.logger = setup_logging("DataModule", 0, output_dir="logs", level=logging.INFO)
+        self.logger.info(
+            f"DataModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
+        )
 
     def load(self):
         raise NotImplementedError
@@ -137,31 +135,37 @@ class DataModule:
             f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
         )
         lock_file = cache_file + ".lock"
-        logging.info(
+        self.logger.info(
             f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
         )
-        logging.info(f"Cache file: {cache_file}")
+        self.logger.info(f"Cache file: {cache_file}")
 
         with FileLock(lock_file):
             if os.path.exists(cache_file):
-                logging.info(f"Cache file found. Attempting to load from {cache_file}")
+                self.logger.info(
+                    f"Cache file found. Attempting to load from {cache_file}"
+                )
                 try:
                     with open(cache_file, "rb") as f:
                         result = pickle.load(f)
-                    logging.info("Successfully loaded data from cache")
+                    self.logger.info("Successfully loaded data from cache")
                     return result
                 except (EOFError, pickle.UnpicklingError) as e:
-                    logging.error(f"Error loading cache file: {str(e)}")
-                    logging.info("Removing corrupted cache file and regenerating data")
+                    self.logger.error(f"Error loading cache file: {str(e)}")
+                    self.logger.info(
+                        "Removing corrupted cache file and regenerating data"
+                    )
                     os.remove(cache_file)
                 except Exception as e:
-                    logging.error(f"Unexpected error loading cache file: {str(e)}")
+                    self.logger.error(f"Unexpected error loading cache file: {str(e)}")
                     raise
 
-            logging.info("Cache not found or corrupted. Loading and processing data.")
+            self.logger.info(
+                "Cache not found or corrupted. Loading and processing data."
+            )
             try:
                 x, y = self.load()
-                logging.info(
+                self.logger.info(
                     f"Data loaded. Shape of x: {x.shape}, Shape of y: {y.shape}"
                 )
 
@@ -176,13 +180,13 @@ class DataModule:
                     test_size=n_test,
                     random_state=seed + 1,
                 )
-                logging.info(
+                self.logger.info(
                     f"Data split completed. Shapes: x_tr: {x_tr.shape}, x_val: {x_val.shape}, x_test: {x_test.shape}"
                 )
 
                 # process x
                 if self.normalize:
-                    logging.info("Normalizing data")
+                    self.logger.info("Normalizing data")
                     scaler = StandardScaler()
                     scaler.fit(x_tr)
                     x_tr = scaler.transform(x_tr)
@@ -190,22 +194,22 @@ class DataModule:
                     x_test = scaler.transform(x_test)
 
                 if self.append_one:
-                    logging.info("Appending ones to data")
+                    self.logger.info("Appending ones to data")
                     x_tr = np.c_[x_tr, np.ones(n_tr)]
                     x_val = np.c_[x_val, np.ones(n_val)]
                     x_test = np.c_[x_test, np.ones(n_test)]
 
                 result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
 
-                logging.info(f"Saving processed data to cache file: {cache_file}")
+                self.logger.info(f"Saving processed data to cache file: {cache_file}")
                 with open(cache_file, "wb") as f:
                     pickle.dump(result, f)
-                logging.info("Data successfully saved to cache")
+                self.logger.info("Data successfully saved to cache")
 
                 return result
 
             except Exception as e:
-                logging.error(f"Error in data processing: {str(e)}")
+                self.logger.error(f"Error in data processing: {str(e)}")
                 if os.path.exists(cache_file):
                     os.remove(cache_file)
                 raise
