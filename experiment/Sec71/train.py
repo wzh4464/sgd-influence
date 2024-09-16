@@ -223,6 +223,8 @@ def train_and_save(
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
 
+                torch.cuda.empty_cache()
+
         # Save final model
         if n < 0:
             m = net_func()
@@ -234,6 +236,9 @@ def train_and_save(
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
+
+            torch.cuda.empty_cache()
+
         elif compute_counterfactual:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
