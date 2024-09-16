@@ -1,3 +1,16 @@
+###
+# File: /MyNet.py
+# Created Date: September 9th 2024
+# Author: Zihan
+# -----
+# Last Modified: Monday, 16th September 2024 9:13:01 am
+# Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
+# -----
+# HISTORY:
+# Date      		By   	Comments
+# ----------		------	---------------------------------------------------------
+###
+
 import numpy as np
 import torch
 import torch.nn as nn
