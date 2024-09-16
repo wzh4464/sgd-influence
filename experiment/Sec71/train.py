@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 9:12:15 am
+# Last Modified: Monday, 16th September 2024 9:21:42 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -180,7 +180,7 @@ def train_and_save(
                 m = net_func()
                 m.load_state_dict(copy.deepcopy(model.state_dict()))
                 if n < 0:
-                    m.to("cpu")  # 将模型移至CPU内存
+                    m.to("cpu")  # Move model to CPU memory
                     list_of_sgd_models.append(m)
                     if (
                         c % num_steps == 0
@@ -197,6 +197,7 @@ def train_and_save(
                         c % num_steps == 0
                         or c == num_steps * training_params["num_epoch"]
                     ):
+                        m.to("cpu")  # Move model to CPU memory
                         list_of_counterfactual_models[n].models.append(m)
 
                 # SGD optimization
@@ -223,26 +224,34 @@ def train_and_save(
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
 
+                # Clean up
+                del z, loss
                 torch.cuda.empty_cache()
+
+            # End of epoch clean up
+            torch.cuda.empty_cache()
 
         # Save final model
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to("cpu")  # 将模型移至CPU内存
+            m.to("cpu")  # Move model to CPU memory
             list_of_sgd_models.append(m)
-            main_losses.append(loss_fn(model(x_val), y_val).item())
             with torch.no_grad():
+                main_losses.append(loss_fn(model(x_val), y_val).item())
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
 
-            torch.cuda.empty_cache()
-
         elif compute_counterfactual:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
+            m.to("cpu")  # Move model to CPU memory
             list_of_counterfactual_models[n].models.append(m)
+
+        # Clean up after each iteration
+        del model
+        torch.cuda.empty_cache()
 
     # Prepare data to save and return
     data_to_save = {
