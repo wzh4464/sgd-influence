@@ -338,13 +338,6 @@ class AdultModule(DataModule):
 
 
 class CifarModule(DataModule):
-    def __init__(
-        self, normalize=True, append_one=False, cifar_version=10, data_dir=None
-    ):
-        super().__init__(normalize, append_one, data_dir)
-        assert cifar_version in [10, 100], "CIFAR version must be either 10 or 100"
-        self.cifar_version = cifar_version
-
     def load(self):
         cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
         lock_file = cache_file + ".lock"
@@ -380,6 +373,22 @@ class CifarModule(DataModule):
 
             # Make labels 0 and 1
             y = (y == 1).astype(int)
+
+            # Balanced data sampling: ensure 50/50 class distribution
+            class_0_indices = np.where(y == 0)[0]
+            class_1_indices = np.where(y == 1)[0]
+            min_class_samples = min(len(class_0_indices), len(class_1_indices))
+
+            # Take equal number of samples from both classes
+            balanced_indices = np.concatenate(
+                [
+                    np.random.choice(class_0_indices, min_class_samples, replace=False),
+                    np.random.choice(class_1_indices, min_class_samples, replace=False),
+                ]
+            )
+
+            x = x[balanced_indices]
+            y = y[balanced_indices]
 
             result = (x, y)
 
