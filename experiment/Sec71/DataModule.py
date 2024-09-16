@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 9:57:28 am
+# Last Modified: Monday, 16th September 2024 10:00:24 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -342,6 +342,9 @@ class AdultModule(DataModule):
 
 
 class CifarModule(DataModule):
+    def __init__(self, cifar_version=10, normalize=True, append_one=False, data_dir=None):
+        super().__init__(normalize, append_one, data_dir)
+        self.cifar_version = cifar_version
     def load(self):
         cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
         lock_file = cache_file + ".lock"
