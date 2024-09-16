@@ -87,6 +87,7 @@ def train_and_save(
     custom_n_test: int = None,
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
+    compute_counterfactual: bool = True,  # 新添加的参数
 ) -> Dict[str, Any]:
     dn = f"./{key}_{model_type}"
     fn = f"{dn}/sgd{seed:03d}.dat"
@@ -138,12 +139,16 @@ def train_and_save(
     net_func = lambda: get_model(model_type, x_tr.shape[1], device)
     num_steps = int(np.ceil(data_sizes["n_tr"] / training_params["batch_size"]))
     list_of_sgd_models = []
-    list_of_counterfactual_models = [NetList([]) for _ in range(data_sizes["n_tr"])]
+    list_of_counterfactual_models = (
+        [NetList([]) for _ in range(data_sizes["n_tr"])]
+        if compute_counterfactual
+        else None
+    )
     main_losses = []
     train_losses = np.zeros(training_params["num_epoch"] * num_steps + 1)
 
     # Training loop
-    for n in range(-1, data_sizes["n_test"]):
+    for n in range(-1, data_sizes["n_test"] if compute_counterfactual else 0):
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
@@ -181,7 +186,7 @@ def train_and_save(
                             test_pred = (model(x_val) > 0).float()
                             test_acc = (test_pred == y_val).float().mean().item()
                             test_accuracies.append(test_acc)
-                else:
+                elif compute_counterfactual:
                     if (
                         c % num_steps == 0
                         or c == num_steps * training_params["num_epoch"]
@@ -222,7 +227,7 @@ def train_and_save(
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
-        else:
+        elif compute_counterfactual:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
             list_of_counterfactual_models[n].models.append(m)
@@ -259,6 +264,12 @@ if __name__ == "__main__":
     parser.add_argument("--n_test", type=int, help="number of test samples")
     parser.add_argument("--num_epoch", type=int, help="number of epochs")
     parser.add_argument("--batch_size", type=int, help="batch size")
+    parser.add_argument(
+        "--compute_counterfactual",
+        type=bool,
+        default=True,
+        help="whether to compute counterfactual models",
+    )
     args = parser.parse_args()
 
     assert args.target in ["mnist", "20news", "adult", "cifar"]
@@ -275,6 +286,7 @@ if __name__ == "__main__":
             custom_n_test=args.n_test,
             custom_num_epoch=args.num_epoch,
             custom_batch_size=args.batch_size,
+            compute_counterfactual=args.compute_counterfactual,
         )
     else:
         for seed in range(100):
@@ -288,4 +300,5 @@ if __name__ == "__main__":
                 custom_n_test=args.n_test,
                 custom_num_epoch=args.num_epoch,
                 custom_batch_size=args.batch_size,
+                compute_counterfactual=args.compute_counterfactual,
             )
