@@ -155,6 +155,8 @@ def train_and_save(
         info = []
         c = 0
 
+        test_accuracies = []
+
         for epoch in range(training_params["num_epoch"]):
             np.random.seed(epoch)
             idx_list = np.array_split(
@@ -175,6 +177,10 @@ def train_and_save(
                     ):
                         with torch.no_grad():
                             main_losses.append(loss_fn(model(x_val), y_val).item())
+                            # Calculate test accuracy
+                            test_pred = (model(x_val) > 0).float()
+                            test_acc = (test_pred == y_val).float().mean().item()
+                            test_accuracies.append(test_acc)
                 else:
                     if (
                         c % num_steps == 0
@@ -212,6 +218,10 @@ def train_and_save(
             m.load_state_dict(copy.deepcopy(model.state_dict()))
             list_of_sgd_models.append(m)
             main_losses.append(loss_fn(model(x_val), y_val).item())
+            with torch.no_grad():
+                test_pred = (model(x_val) > 0).float()
+                test_acc = (test_pred == y_val).float().mean().item()
+                test_accuracies.append(test_acc)
         else:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
@@ -224,6 +234,7 @@ def train_and_save(
         "counterfactual": list_of_counterfactual_models,
         "alpha": alpha,
         "main_losses": main_losses,
+        "test_accuracies": test_accuracies,
         "train_losses": train_losses,
         "seed": seed,
         "n_tr": data_sizes["n_tr"],
