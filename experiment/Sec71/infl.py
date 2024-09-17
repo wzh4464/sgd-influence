@@ -301,7 +301,7 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
     return infl
 
 
-def infl_lie(key, model_type, seed=0, gpu=0, is_csv=False):
+def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True):
     dn, _ = get_file_paths(key, model_type, seed)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
