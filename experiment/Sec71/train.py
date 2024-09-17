@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 9:38:16 am
+# Last Modified: Tuesday, 17th September 2024 11:12:36 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -33,10 +33,10 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 file_abspath = os.path.abspath(__file__)
-
+current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录路径
 
 def get_data_module(
-    key: str, csv_path: str = f"{file_abspath}/data"
+    key: str, csv_path: str
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
     if key == "20news":
         module = NewsModule()
@@ -85,9 +85,15 @@ def train_and_save(
     custom_batch_size: int = None,
     compute_counterfactual: bool = True,  # 新添加的参数
 ) -> Dict[str, Any]:
-    dn = f"./{key}_{model_type}"
-    fn = f"{dn}/sgd{seed:03d}.dat"
+    # 默认 csv_path 为当前目录下的 'data' 文件夹
+    if csv_path is None:
+        csv_path = os.path.join(current_dir, "data")
+
+    # 创建存储模型的目录，基于当前脚本路径
+    dn = os.path.join(current_dir, f"{key}_{model_type}")
+    fn = os.path.join(dn, f"sgd{seed:03d}.dat")
     os.makedirs(dn, exist_ok=True)
+
     device = f"cuda:{gpu}"
 
     # Fetch data and settings
@@ -282,11 +288,15 @@ def main():
     parser.add_argument("--num_epoch", type=int, help="number of epochs")
     parser.add_argument("--batch_size", type=int, help="batch size")
     parser.add_argument(
-        "--compute_counterfactual",
-        type=bool,
-        default=True,
-        help="whether to compute counterfactual models",
+        "--no-loo",
+        action="store_false",
+        dest="compute_counterfactual",  # 设置为 False
+        help="Disable the computation of counterfactual models (leave-one-out)."
     )
+
+    # 默认 compute_counterfactual 为 True
+    parser.set_defaults(compute_counterfactual=True)
+
     args = parser.parse_args()
 
     # Setup logging
