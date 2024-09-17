@@ -1,29 +1,49 @@
-import os, sys
+import os
 import argparse
 import numpy as np
 import pandas as pd
-
-# import joblib
-import joblib
 import torch
 from DataModule import MnistModule, NewsModule, AdultModule
 from MyNet import LogReg, DNN, NetList
-import train
 import warnings
 
-# no future warning
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-### parameters ###
-# for training in icml
-batch_size = 200
-lr = 0.01
-momentum = 0.9
-num_epochs = 100
-### parameters ###
+# Get the directory of the current script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Parameters for ICML training
+BATCH_SIZE = 200
+LR = 0.01
+MOMENTUM = 0.9
+NUM_EPOCHS = 100
+
+
+def get_data_module(key):
+    if key == "mnist":
+        return MnistModule()
+    elif key == "20news":
+        return NewsModule()
+    elif key == "adult":
+        return AdultModule(csv_path=os.path.join(SCRIPT_DIR, "data"))
+    else:
+        raise ValueError(f"Unsupported dataset: {key}")
+
+
+def load_data(key, n_tr, n_val, n_test, seed, device):
+    module = get_data_module(key)
+    z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
+    (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+
+    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
+    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
+    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
+    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
+
+    return x_tr, y_tr, x_val, y_val
 
 
 def compute_gradient(x, y, model, loss_fn):
@@ -37,104 +57,63 @@ def compute_gradient(x, y, model, loss_fn):
     return u
 
 
+def get_file_paths(key, model_type, seed, infl_type=None):
+    dn = os.path.join(SCRIPT_DIR, f"{key}_{model_type}")
+    fn = os.path.join(dn, f"sgd{seed:03d}.dat")
+    if infl_type:
+        gn = os.path.join(dn, f"infl_{infl_type}{seed:03d}.dat")
+        return dn, fn, gn
+    return dn, fn
+
+
 def infl_true(key, model_type, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
-    gn = "%s/infl_true%03d.dat" % (dn, seed)
-    device = "cuda:%d" % (gpu,)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "true")
+    device = f"cuda:{gpu}"
 
-    # setup
-    if model_type == "logreg":
-        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
-            train.settings_logreg(key)
-        )
-        _, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_val, y_val) = z_val
-        # net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
-            train.settings_dnn(key)
-        )
-        _, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_val, y_val) = z_val
-        # net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
 
-    # to tensor
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
-
-    # model setup
-    res = joblib.load(fn)
     model = res["models"].models[-1].to(device)
-    # loss_fn = torch.nn.functional.nll_loss
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
     # influence
     z = model(x_val)
     loss = loss_fn(z, y_val)
-    # acc = ((z > 0.5).to(torch.float) - y_val).abs().mean().item()
-    # print(acc, loss.item())
-    infl = np.zeros(n_tr)
-    for i in range(n_tr):
+    infl = np.zeros(res["n_tr"])
+    for i in range(res["n_tr"]):
         m = res["counterfactual"][i].models[-1].to(device)
         m.eval()
         zi = m(x_val)
         lossi = loss_fn(zi, y_val)
         infl[i] = lossi.item() - loss.item()
-        # acc = ((zi > 0.5).to(torch.float) - y_val).abs().mean().item()
-        # print(i, acc, lossi.item())
 
-    # save
-    joblib.dump(infl, gn, compress=9)
+    torch.save(infl, gn)
 
 
 def infl_sgd(key, model_type, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
-    gn = "%s/infl_sgd%03d.dat" % (dn, seed)
-    device = "cuda:%d" % (gpu,)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd")
+    device = f"cuda:{gpu}"
 
-    # setup
-    if model_type == "logreg":
-        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
-            train.settings_logreg(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
-            train.settings_dnn(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
 
-    # to tensor
-    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
-
-    # model setup
-    res = joblib.load(fn)
     model = res["models"].models[-1].to(device)
-    # loss_fn = torch.nn.functional.nll_loss
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
-    # gradient
     u = compute_gradient(x_val, y_val, model, loss_fn)
     u = [uu.to(device) for uu in u]
 
-    # model list
     models = [m.to(device) for m in res["models"].models[:-1]]
-
-    # influence
     alpha = res["alpha"]
     info = res["info"]
-    infl = np.zeros(n_tr)
+    infl = np.zeros(res["n_tr"])
+
     for t in range(len(models) - 1, -1, -1):
         m = models[t]
         m.eval()
@@ -159,58 +138,32 @@ def infl_sgd(key, model_type, seed=0, gpu=0):
         m.zero_grad()
         ug.backward()
         for j, param in enumerate(m.parameters()):
-            # u[j] -= lr * param.grad.data / idx.size
             u[j] -= lr * param.grad.data
 
-    # save
-    joblib.dump(infl, gn, compress=9)
+    torch.save(infl, gn)
 
 
 def infl_nohess(key, model_type, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
-    gn = "%s/infl_nohess%03d.dat" % (dn, seed)
-    device = "cuda:%d" % (gpu,)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess")
+    device = f"cuda:{gpu}"
 
-    # setup
-    if model_type == "logreg":
-        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
-            train.settings_logreg(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
-            train.settings_dnn(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
 
-    # to tensor
-    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
-
-    # model setup
-    res = joblib.load(fn)
     model = res["models"].models[-1].to(device)
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
-    # gradient
     u = compute_gradient(x_val, y_val, model, loss_fn)
     u = [uu.to(device) for uu in u]
 
-    # model list
     models = [m.to(device) for m in res["models"].models[:-1]]
-
-    # influence
     alpha = res["alpha"]
     info = res["info"]
-    infl = np.zeros(n_tr)
+    infl = np.zeros(res["n_tr"])
+
     for t in range(len(models) - 1, -1, -1):
         m = models[t]
         m.eval()
@@ -225,68 +178,36 @@ def infl_nohess(key, model_type, seed=0, gpu=0):
             for j, param in enumerate(m.parameters()):
                 infl[i] += lr * (u[j].data * param.grad.data).sum().item() / idx.size
 
-    # save
-    joblib.dump(infl, gn, compress=9)
+    torch.save(infl, gn)
 
 
 def infl_icml(key, model_type, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
-    gn = "%s/infl_icml%03d.dat" % (dn, seed)
-    hn = "%s/loss_icml%03d.dat" % (dn, seed)
-    device = "cuda:%d" % (gpu,)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "icml")
+    hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
+    device = f"cuda:{gpu}"
 
-    # setup
-    if model_type == "logreg":
-        # module, (n_tr, n_val, n_test), (_, _, _, batch_size) = train.settings_logreg(key)
-        module, (n_tr, n_val, n_test), _ = train.settings_logreg(key)
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        # module, (n_tr, n_val, n_test), m, _, (_, _, _, batch_size) = train.settings_dnn(key)
-        module, (n_tr, n_val, n_test), m, _, _ = train.settings_dnn(key)
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
 
-    # to tensor
-    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
-
-    # model setup
-    res = joblib.load(fn)
     model = res["models"].models[-1].to(device)
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
-    # gradient
     u = compute_gradient(x_val, y_val, model, loss_fn)
     u = [uu.to(device) for uu in u]
 
-    # Hinv * u with SGD
-    if model_type == "dnn":
-        alpha = 1.0
-    elif model_type == "logreg":
-        alpha = res["alpha"]
-    num_steps = int(np.ceil(n_tr / batch_size))
-    # v = [torch.zeros(*param.shape, requires_grad=True, device=device) for param in model.parameters()]
-    v = []
-    for uu in u:
-        v.append(uu.clone())
-        v[-1].to(device)
-        v[-1].requires_grad = True
-    optimizer = torch.optim.SGD(v, lr=lr, momentum=momentum)
-    # optimizer = torch.optim.Adam(v, lr=lr)
+    alpha = 1.0 if model_type == "dnn" else res["alpha"]
+    num_steps = int(np.ceil(res["n_tr"] / BATCH_SIZE))
+    v = [uu.clone().to(device).requires_grad_(True) for uu in u]
+    optimizer = torch.optim.SGD(v, lr=LR, momentum=MOMENTUM)
     loss_train = []
-    for epoch in range(num_epochs):
-        model.eval()
 
-        # training
+    for epoch in range(NUM_EPOCHS):
+        model.eval()
         np.random.seed(epoch)
-        idx_list = np.array_split(np.random.permutation(n_tr), num_steps)
+        idx_list = np.array_split(np.random.permutation(res["n_tr"]), num_steps)
         for i in range(num_steps):
             idx = idx_list[i]
             z = model(x_tr[idx])
@@ -308,14 +229,11 @@ def infl_icml(key, model_type, seed=0, gpu=0):
             loss_i.backward()
             optimizer.step()
             loss_train.append(loss_i.item())
-            # print(loss_i.item())
 
-    # save
-    joblib.dump(np.array(loss_train), hn, compress=9)
+    torch.save(np.array(loss_train), hn)
 
-    # influence
-    infl = np.zeros(n_tr)
-    for i in range(n_tr):
+    infl = np.zeros(res["n_tr"])
+    for i in range(res["n_tr"]):
         z = model(x_tr[[i]])
         loss = loss_fn(z, y_tr[[i]])
         model.zero_grad()
@@ -324,72 +242,37 @@ def infl_icml(key, model_type, seed=0, gpu=0):
             (param.grad.data.cpu().numpy() * v[j].data.cpu().numpy()).sum()
             for j, param in enumerate(model.parameters())
         )
-        infl[i] = infl_i / n_tr
+        infl[i] = infl_i / res["n_tr"]
 
-    # save
-    joblib.dump(infl, gn, compress=9)
+    torch.save(infl, gn)
+
 
 def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
-    device = "cuda:%d" % (gpu,)
+    dn, fn = get_file_paths(key, model_type, seed)
+    device = f"cuda:{gpu}"
 
-    # setup
-    if model_type == "logreg":
-        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
-            train.settings_logreg(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
-            train.settings_dnn(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
 
-    # to tensor
-    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
-
-    # model setup
-    res = joblib.load(fn)
     model = res["models"].models[-1].to(device)
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
-    # gradient
     u = compute_gradient(x_val, y_val, model, loss_fn)
     u = [uu.to(device) for uu in u]
 
-    # report = "实验数据分析报告\n" + "================\n\n"
-    # # 1. 训练信息
-    # report += "1. 训练信息\n"
-    # report += "-------------\n"
-    # epochs = len(res['info']) / (200 / len(res['info'][0]['idx']))
-    # report += f"总训练轮数 (epochs): {epochs:.1f}\n"
-    # report += f"每轮步数: {200 / len(res['info'][0]['idx']):.0f}\n"
-    # report += f"批次大小: {len(res['info'][0]['idx'])}\n"
-    # report += f"总训练步数: {len(res['info'])}\n\n"
-    
-    steps_per_epoch = (n_tr + batch_size - 1) // batch_size # include probably not full batch
-    total_steps = custom_epoch * steps_per_epoch # total steps
-    
-    assert total_steps <= len(res["info"])
-    
-    # model list
-    models = [m.to(device) for m in res["models"].models[:total_steps]]
+    steps_per_epoch = (res["n_tr"] + res["batch_size"] - 1) // res["batch_size"]
+    total_steps = custom_epoch * steps_per_epoch
 
-    # influence
+    assert total_steps <= len(res["info"])
+
+    models = [m.to(device) for m in res["models"].models[:total_steps]]
     alpha = res["alpha"]
     info = res["info"]
-    infl = np.zeros(n_tr)
-    
-    # 使用自定义的 epoch 数量
+    infl = np.zeros(res["n_tr"])
+
     for t in range(total_steps - 1, -1, -1):
         m = models[t]
         m.eval()
@@ -404,7 +287,6 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
             for j, param in enumerate(m.parameters()):
                 infl[i] += lr * (u[j].data * param.grad.data).sum().item() / idx.size
 
-        # update u
         z = m(x_tr[idx])
         loss = loss_fn(z, y_tr[idx])
         for p in m.parameters():
@@ -420,78 +302,65 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
 
 
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=False):
-    import os
-    import pandas as pd
-    import joblib
-
-    dn = f"./{key}_{model_type}"
+    dn, _ = get_file_paths(key, model_type, seed)
     os.makedirs(dn, exist_ok=True)
-    csv_fn = f"{dn}/infl_lie_full_{seed}.csv"
-    max_epoch = 12  # Assuming epochs from 0 to 12 inclusive
+    csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
+    max_epoch = 12
 
-    # Compute infl values for each epoch
-    infl_list = []
-    for epoch in range(max_epoch + 1):  # Epochs from 0 to 12
-        infl = infl_lie_helper(key, model_type, epoch, seed, gpu)
-        infl_list.append(infl)
+    infl_list = [
+        infl_lie_helper(key, model_type, epoch, seed, gpu)
+        for epoch in range(max_epoch + 1)
+    ]
 
-    # Compute differences between consecutive epochs
-    diffs = []
-    diff_dict = {}
-    for i in range(1, len(infl_list)):
-        diff = infl_list[i] - infl_list[i - 1]
-        diffs.append(diff)
-        diff_key = f"diff_{i-1}_{i}"
-        diff_dict[diff_key] = diff
+    diff_dict = {
+        f"diff_{i-1}_{i}": infl_list[i] - infl_list[i - 1]
+        for i in range(1, len(infl_list))
+    }
 
-    # Save differences to CSV
     if is_csv:
-        df = pd.DataFrame(diff_dict)
-        df.to_csv(csv_fn, index=False)
+        pd.DataFrame(diff_dict).to_csv(csv_fn, index=False)
 
-    # Save the full infl_list to a file
-    joblib.dump(infl_list, f"{dn}/infl_lie_full_%03d.dat" % seed, compress=9)
+    torch.save(infl_list, os.path.join(dn, f"infl_lie_full_{seed:03d}.dat"))
 
     print(f"Results saved to {csv_fn}")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train Models & Save")
+
+def main():
+    parser = argparse.ArgumentParser(description="Compute Influence Functions")
     parser.add_argument("--target", default="adult", type=str, help="target data")
     parser.add_argument("--model", default="logreg", type=str, help="model type")
     parser.add_argument("--type", default="true", type=str, help="influence type")
     parser.add_argument("--seed", default=0, type=int, help="random seed")
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
     args = parser.parse_args()
-    assert args.target in ["mnist", "20news", "adult"]
-    assert args.model in ["logreg", "dnn"]
-    assert args.type in ["true", "sgd", "nohess", "icml", "lie"]
-    if args.type == "true":
-        if args.seed >= 0:
-            infl_true(args.target, args.model, args.seed, args.gpu)
-        else:
-            for seed in range(100):
-                infl_true(args.target, args.model, seed, args.gpu)
-    elif args.type == "sgd":
-        if args.seed >= 0:
-            infl_sgd(args.target, args.model, args.seed, args.gpu)
-        else:
-            for seed in range(100):
-                infl_sgd(args.target, args.model, seed, args.gpu)
-    elif args.type == "nohess":
-        if args.seed >= 0:
-            infl_nohess(args.target, args.model, args.seed, args.gpu)
-        else:
-            for seed in range(100):
-                infl_nohess(args.target, args.model, seed, args.gpu)
-    elif args.type == "icml":
-        if args.seed >= 0:
-            infl_icml(args.target, args.model, args.seed, args.gpu)
-        else:
-            for seed in range(100):
-                infl_icml(args.target, args.model, seed, args.gpu)
-    elif args.type == "lie":
-        if args.seed >= 0:
-            infl_lie(args.target, args.model, args.seed, args.gpu, is_csv=True)
-        else:
-            for seed in range(100):
-                infl_lie(args.target, args.model, seed, args.gpu)
+
+    if args.target not in ["mnist", "20news", "adult"]:
+        raise ValueError(
+            "Invalid target data. Choose from 'mnist', '20news', or 'adult'."
+        )
+    if args.model not in ["logreg", "dnn"]:
+        raise ValueError("Invalid model type. Choose from 'logreg' or 'dnn'.")
+    if args.type not in ["true", "sgd", "nohess", "icml", "lie"]:
+        raise ValueError(
+            "Invalid influence type. Choose from 'true', 'sgd', 'nohess', 'icml', or 'lie'."
+        )
+
+    influence_functions = {
+        "true": infl_true,
+        "sgd": infl_sgd,
+        "nohess": infl_nohess,
+        "icml": infl_icml,
+        "lie": infl_lie,
+    }
+
+    infl_func = influence_functions[args.type]
+
+    if args.seed >= 0:
+        infl_func(args.target, args.model, args.seed, args.gpu)
+    else:
+        for seed in range(100):
+            infl_func(args.target, args.model, seed, args.gpu)
+
+
+if __name__ == "__main__":
+    main()
