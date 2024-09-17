@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Tuesday, 17th September 2024 11:12:36 am
+# Last Modified: Tuesday, 17th September 2024 4:48:47 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -16,12 +16,11 @@ import argparse
 import copy
 import numpy as np
 from sklearn.linear_model import LogisticRegressionCV
-import joblib
 import torch
 import torch.nn as nn
 from typing import Tuple, Dict, Any
-import logging
 import traceback
+import pandas as pd
 from logging_utils import setup_logging
 
 
@@ -34,6 +33,7 @@ torch.backends.cudnn.benchmark = False
 
 file_abspath = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录路径
+
 
 def get_data_module(
     key: str, csv_path: str
@@ -254,7 +254,7 @@ def train_and_save(
         del model
         torch.cuda.empty_cache()
 
-    # Prepare data to save and return
+    # Save more detailed information
     data_to_save = {
         "models": NetList(list_of_sgd_models),
         "info": info,
@@ -267,10 +267,24 @@ def train_and_save(
         "n_tr": data_sizes["n_tr"],
         "n_val": data_sizes["n_val"],
         "n_test": data_sizes["n_test"],
+        "num_epoch": training_params["num_epoch"],
+        "batch_size": training_params["batch_size"],
+        "lr": training_params["lr"],
+        "decay": training_params["decay"],
     }
 
     # Save data
     torch.save(data_to_save, fn)
+
+    # Save main_losses and test_accuracies to CSV
+    csv_fn = os.path.join(dn, f"metrics_{seed:03d}.csv")
+    pd.DataFrame(
+        {
+            "epoch": range(len(main_losses)),
+            "main_loss": main_losses,
+            "test_accuracy": test_accuracies,
+        }
+    ).to_csv(csv_fn, index=False)
 
     return data_to_save
 
@@ -290,7 +304,7 @@ def main():
         "--no-loo",
         action="store_false",
         dest="compute_counterfactual",  # 设置为 False
-        help="Disable the computation of counterfactual models (leave-one-out)."
+        help="Disable the computation of counterfactual models (leave-one-out).",
     )
 
     # 默认 compute_counterfactual 为 True
