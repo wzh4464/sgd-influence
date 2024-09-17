@@ -147,6 +147,7 @@ def train_and_save(
         else None
     )
     main_losses = []
+    test_accuracies = []
     train_losses = np.zeros(training_params["num_epoch"] * num_steps + 1)
 
     # Training loop
@@ -166,8 +167,6 @@ def train_and_save(
         skip = [n]
         info = []
         c = 0
-
-        test_accuracies = []
 
         for epoch in range(training_params["num_epoch"]):
             np.random.seed(epoch)
