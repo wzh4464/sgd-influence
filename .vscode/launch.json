@@ -13,7 +13,8 @@
                 "--target", "adult",
                 "--model", "logreg",
                 "--seed", "0",
-                "--gpu", "0"
+                "--gpu", "0",
+                "--num_epoch", "12",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -25,11 +26,11 @@
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/infl.py",
             "args": [
-                "--target", "adult",
-                "--model", "logreg",
-                "--type", "true",
+                "--target", "mnist",
+                "--model", "dnn",
+                "--type", "lie",
                 "--seed", "0",
-                "--gpu", "0"
+                "--gpu", "0",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
