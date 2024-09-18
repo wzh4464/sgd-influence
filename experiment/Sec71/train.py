@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Wednesday, 18th September 2024 4:12:19 pm
+# Last Modified: Wednesday, 18th September 2024 3:33:35 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -40,7 +40,7 @@ def get_data_module(
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
     if key == "20news":
         module = NewsModule()
-        data_sizes = {"n_tr": 1000, "n_val": 200, "n_test": 200}
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
         training_params = {"lr": 0.01, "decay": True, "num_epoch": 12, "batch_size": 20}
     elif key == "adult":
         module = AdultModule(csv_path=csv_path)
@@ -52,7 +52,7 @@ def get_data_module(
         training_params = {"lr": 0.01, "decay": True, "num_epoch": 5, "batch_size": 5}
     elif key == "cifar":
         module = CifarModule()
-        data_sizes = {"n_tr": 5000, "n_val": 1000, "n_test": 1000}
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
         training_params = {"lr": 0.1, "decay": True, "num_epoch": 10, "batch_size": 64}
     else:
         raise ValueError(f"Unsupported dataset: {key}")
@@ -111,9 +111,8 @@ def train_and_save(
     if custom_batch_size:
         training_params["batch_size"] = custom_batch_size
 
-    # Use a consistent seed (42) for dataset selection
     z_tr, z_val, _ = module.fetch(
-        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], 42
+        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
     )
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
 
@@ -160,7 +159,7 @@ def train_and_save(
     logger.info(f"Starting training for {training_params['num_epoch']} epochs")
 
     # Training loop
-    for n in range(-1, data_sizes["n_test"] if compute_counterfactual else 0):
+    for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
