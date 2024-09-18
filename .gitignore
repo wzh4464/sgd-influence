@@ -3,10 +3,10 @@
 *.err
 *.pyc
 *.dat
-**/adult_dnn*
+**/adult_*
 *.npz
 .vscode/settings.json
-**/mnist_dnn*
+**/mnist_*
 **/20news_*
 *.lock
 *.pkl
