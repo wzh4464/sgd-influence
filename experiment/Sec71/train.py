@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Wednesday, 18th September 2024 12:26:11 pm
+# Last Modified: Wednesday, 18th September 2024 4:12:19 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -278,20 +278,56 @@ def train_and_save(
     # Save more detailed information
     data_to_save = {
         "models": NetList(list_of_sgd_models),
+        # models: NetList object containing (num_epoch * num_steps + 1) models
+        # Each model's shape depends on the model_type (logreg, dnn, or cnn)
+
         "info": info,
+        # info: List of dictionaries, length = (num_epoch * num_steps)
+        # Each dict contains 'idx' (array of integers) and 'lr' (float)
+
         "counterfactual": list_of_counterfactual_models,
+        # counterfactual: List of NetList objects if compute_counterfactual is True, else None
+        # Length = n_tr if compute_counterfactual is True
+        # Each NetList contains (num_epoch + 1) models
+
         "alpha": alpha,
+        # alpha: float, regularization parameter
+
         "main_losses": main_losses,
+        # main_losses: List of floats, length = (num_epoch + 1)
+        # Contains validation losses at the end of each epoch
+
         "test_accuracies": test_accuracies,
+        # test_accuracies: List of floats, length = (num_epoch + 1)
+        # Contains test accuracies at the end of each epoch
+
         "train_losses": train_losses,
+        # train_losses: numpy array of shape (num_epoch * num_steps + 1,)
+        # Contains training losses for each batch
+
         "seed": seed,
+        # seed: integer, random seed used
+
         "n_tr": data_sizes["n_tr"],
+        # n_tr: integer, number of training samples
+
         "n_val": data_sizes["n_val"],
+        # n_val: integer, number of validation samples
+
         "n_test": data_sizes["n_test"],
+        # n_test: integer, number of test samples
+
         "num_epoch": training_params["num_epoch"],
+        # num_epoch: integer, number of training epochs
+
         "batch_size": training_params["batch_size"],
+        # batch_size: integer, size of each training batch
+
         "lr": training_params["lr"],
+        # lr: float, initial learning rate
+
         "decay": training_params["decay"],
+        # decay: boolean, whether learning rate decay is applied
     }
 
     # Save data

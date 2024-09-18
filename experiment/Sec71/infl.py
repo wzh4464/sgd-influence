@@ -6,6 +6,7 @@ import torch
 from DataModule import MnistModule, NewsModule, AdultModule
 from MyNet import LogReg, DNN, NetList
 import warnings
+from logging_utils import setup_logging
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -247,8 +248,8 @@ def infl_icml(key, model_type, seed=0, gpu=0):
     torch.save(infl, gn)
 
 
-def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
-    dn, fn = get_file_paths(key, model_type, seed)
+def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None):
+    _, fn = get_file_paths(key, model_type, seed)
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
@@ -265,6 +266,9 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
 
     steps_per_epoch = (res["n_tr"] + res["batch_size"] - 1) // res["batch_size"]
     total_steps = custom_epoch * steps_per_epoch
+    
+    logger.info(f"SPE: {steps_per_epoch}")
+    logger.info(f"Total steps: {total_steps}")
 
     assert total_steps <= len(res["info"])
 
@@ -272,6 +276,8 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
     alpha = res["alpha"]
     info = res["info"]
     infl = np.zeros(res["n_tr"])
+
+    logger.info(f"Starting influence computation for epoch {custom_epoch}")
 
     for t in range(total_steps - 1, -1, -1):
         m = models[t]
@@ -286,7 +292,6 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
             loss.backward()
             for j, param in enumerate(m.parameters()):
                 infl[i] += lr * (u[j].data * param.grad.data).sum().item() / idx.size
-
         z = m(x_tr[idx])
         loss = loss_fn(z, y_tr[idx])
         for p in m.parameters():
@@ -298,19 +303,30 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0):
         for j, param in enumerate(m.parameters()):
             u[j] -= lr * param.grad.data
 
+        if t % steps_per_epoch == 0:
+            logger.info(f"Completed step {t} of {total_steps}")
+
+    logger.info(f"Finished influence computation for epoch {custom_epoch}")
     return infl
 
 
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True):
-    dn, _ = get_file_paths(key, model_type, seed)
+    dn, fn = get_file_paths(key, model_type, seed)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
-    max_epoch = 12
 
-    infl_list = [
-        infl_lie_helper(key, model_type, epoch, seed, gpu)
-        for epoch in range(max_epoch + 1)
-    ]
+    logger = setup_logging(f"infl_lie_{key}_{model_type}", seed)
+    logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
+
+    res = torch.load(fn, map_location=f"cuda:{gpu}")
+    num_epochs = res["num_epoch"]
+    infl_list = []
+
+    for epoch in range(num_epochs + 1):
+        logger.info(f"Computing influence for epoch {epoch}")
+        infl = infl_lie_helper(key, model_type, epoch, seed, gpu, logger)
+        infl_list.append(infl)
+        logger.info(f"Completed influence computation for epoch {epoch}")
 
     diff_dict = {
         f"diff_{i-1}_{i}": infl_list[i] - infl_list[i - 1]
@@ -319,9 +335,14 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True):
 
     if is_csv:
         pd.DataFrame(diff_dict).to_csv(csv_fn, index=False)
+        logger.info(f"CSV results saved to {csv_fn}")
 
     torch.save(infl_list, os.path.join(dn, f"infl_lie_full_{seed:03d}.dat"))
+    logger.info(
+        f"Full results saved to {os.path.join(dn, f'infl_lie_full_{seed:03d}.dat')}"
+    )
 
+    logger.info("infl_lie computation completed")
     print(f"Results saved to {csv_fn}")
 
 
