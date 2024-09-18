@@ -6,63 +6,56 @@ setopt PIPE_FAIL
 
 # 设置初始seed和终了seed
 INITIAL_SEED=0
-FINAL_SEED=99
+FINAL_SEED=15
 
 # 设置绝对路径
-HOME_DIR="/home/zihan"
-PYTHON_ENV="$HOME_DIR/codes/sgd-influence/.venv/bin/python"
-WORK_DIR="$HOME_DIR/codes/sgd-influence/experiment/Sec71"
+HOME_DIR="/workspace"
+PYTHON_ENV="$HOME_DIR/sgd-influence/.venv/bin/python"
+WORK_DIR="$HOME_DIR/sgd-influence/experiment/Sec71"
 TRAIN_SCRIPT="$WORK_DIR/train.py"
-# TRAIN_SCRIPT="$WORK_DIR/infl.py"
-
-# 定义 Python 执行命令作为变量
-# PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0'
-# PYTHON_COMMAND='$PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --type lie'
-# 定义多个 Python 命令按顺序执行
 
 PYTHON_COMMAND='
-    $PYTHON_ENV "$TRAIN_SCRIPT" --target "$TARGET" --model "$MODEL" --seed "$seed" --gpu 0 --n_tr 1024 --n_val 100 --n_test 200 --num_epoch 15 --batch_size 16 --compute_counterfactual=False
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0;
 '
 
-
 # PYTHON_COMMAND='
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type true --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type icml --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model "$MODEL" --type lie --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model "$MODEL" --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type true --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type icml --seed "$seed" --gpu 0;
-#     # $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model "$MODEL" --type lie --seed "$seed" --gpu 0
+#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0;
 # '
-# PYTHON_COMMAND='
-#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type true --seed "$seed" --gpu 0;
-#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type sgd --seed "$seed" --gpu 0;
-#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type icml --seed "$seed" --gpu 0;
-#     CUDA_VISIBLE_DEVICES=$gpu $PYTHON_ENV "$WORK_DIR/infl.py" --target "$TARGET" --model "$MODEL" --type lie --gpu 0 --seed "$seed"
-# '
-
-# 解析命令行参数
-TARGET="cifar"
-MODEL="cnn"
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --target) TARGET="$2"; shift 2 ;;
-        --model) MODEL="$2"; shift 2 ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
-    esac
-done
 
 # 显示调试信息
 echo "========== Debug Info =========="
 echo "Current working directory: $(pwd)"
 echo "Python interpreter: $PYTHON_ENV"
-echo "Train script: $TRAIN_SCRIPT"
-echo "Target: $TARGET"
-echo "Model: $MODEL"
 echo "Python command: $PYTHON_COMMAND"
 echo "Initial seed: $INITIAL_SEED"
 echo "Final seed: $FINAL_SEED"
@@ -145,7 +138,7 @@ run_experiment() {
 }
 
 # 每个GPU上运行的最大并发进程数
-max_processes_per_gpu=1
+max_processes_per_gpu=2
 
 # 创建一个函数来处理每个GPU的任务
 process_gpu_tasks() {
