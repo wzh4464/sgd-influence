@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Tuesday, 17th September 2024 7:17:06 pm
+# Last Modified: Wednesday, 18th September 2024 12:26:11 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -22,7 +22,7 @@ from typing import Tuple, Dict, Any
 import traceback
 import pandas as pd
 from logging_utils import setup_logging
-
+import random
 
 # Assuming these imports are from local files
 from DataModule import MnistModule, NewsModule, AdultModule, CifarModule
@@ -83,9 +83,9 @@ def train_and_save(
     custom_n_test: int = None,
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
-    compute_counterfactual: bool = True,  # 新添加的参数
+    compute_counterfactual: bool = True,
+    logger=None,
 ) -> Dict[str, Any]:
-    # 默认 csv_path 为当前目录下的 'data' 文件夹
     if csv_path is None:
         csv_path = os.path.join(current_dir, "data")
 
@@ -111,10 +111,15 @@ def train_and_save(
     if custom_batch_size:
         training_params["batch_size"] = custom_batch_size
 
+    # Use a consistent seed (42) for dataset selection
     z_tr, z_val, _ = module.fetch(
-        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
+        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], 42
     )
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+
+    logger.info(
+        f"Dataset {key} loaded with {data_sizes['n_tr']} training samples, {data_sizes['n_val']} validation samples"
+    )
 
     # Model selection and hyperparameter tuning
     if model_type == "logreg":
@@ -125,6 +130,8 @@ def train_and_save(
         alpha = 0.001  # You might want to tune this for DNN/CNN
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
+
+    logger.info(f"Model {model_type} initialized with alpha={alpha}")
 
     # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
@@ -150,6 +157,8 @@ def train_and_save(
     test_accuracies = []
     train_losses = np.zeros(training_params["num_epoch"] * num_steps + 1)
 
+    logger.info(f"Starting training for {training_params['num_epoch']} epochs")
+
     # Training loop
     for n in range(-1, data_sizes["n_test"] if compute_counterfactual else 0):
         torch.manual_seed(seed)
@@ -169,6 +178,7 @@ def train_and_save(
         c = 0
 
         for epoch in range(training_params["num_epoch"]):
+            epoch_loss = 0.0
             np.random.seed(epoch)
             idx_list = np.array_split(
                 np.random.permutation(data_sizes["n_tr"]), num_steps
@@ -188,17 +198,20 @@ def train_and_save(
                         or c == num_steps * training_params["num_epoch"]
                     ):
                         with torch.no_grad():
-                            main_losses.append(loss_fn(model(x_val), y_val).item())
-                            # Calculate test accuracy
+                            val_loss = loss_fn(model(x_val), y_val).item()
+                            main_losses.append(val_loss)
                             test_pred = (model(x_val) > 0).float()
                             test_acc = (test_pred == y_val).float().mean().item()
                             test_accuracies.append(test_acc)
+                            logger.info(
+                                f"Epoch {epoch+1}/{training_params['num_epoch']}, Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
+                            )
                 elif compute_counterfactual:
                     if (
                         c % num_steps == 0
                         or c == num_steps * training_params["num_epoch"]
                     ):
-                        m.to("cpu")  # Move model to CPU memory
+                        m.to("cpu")
                         list_of_counterfactual_models[n].models.append(m)
 
                 # SGD optimization
@@ -209,6 +222,7 @@ def train_and_save(
                 loss = loss_fn(z, y_tr[idx])
 
                 train_losses[c] = loss.item()
+                epoch_loss += loss.item()
 
                 # Add regularization
                 for p in model.parameters():
@@ -229,7 +243,10 @@ def train_and_save(
                 del z, loss
                 torch.cuda.empty_cache()
 
-            # End of epoch clean up
+            # End of epoch logging
+            logger.info(
+                f"Epoch {epoch+1}/{training_params['num_epoch']}, Average Training Loss: {epoch_loss/num_steps:.4f}"
+            )
             torch.cuda.empty_cache()
 
         # Save final model
@@ -239,10 +256,14 @@ def train_and_save(
             m.to("cpu")  # Move model to CPU memory
             list_of_sgd_models.append(m)
             with torch.no_grad():
-                main_losses.append(loss_fn(model(x_val), y_val).item())
+                val_loss = loss_fn(model(x_val), y_val).item()
+                main_losses.append(val_loss)
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
+                logger.info(
+                    f"Final Validation Loss: {val_loss:.4f}, Final Test Accuracy: {test_acc:.4f}"
+                )
 
         elif compute_counterfactual:
             m = net_func()
@@ -285,6 +306,8 @@ def train_and_save(
             "test_accuracy": test_accuracies,
         }
     ).to_csv(csv_fn, index=False)
+
+    logger.info(f"Training completed. Results saved to {fn} and {csv_fn}")
 
     return data_to_save
 
@@ -349,6 +372,7 @@ def _validate_arguments(logger, args):
             custom_num_epoch=args.num_epoch,
             custom_batch_size=args.batch_size,
             compute_counterfactual=args.compute_counterfactual,
+            logger=logger,
         )
     else:
         for seed in range(100):
@@ -363,6 +387,7 @@ def _validate_arguments(logger, args):
                 custom_num_epoch=args.num_epoch,
                 custom_batch_size=args.batch_size,
                 compute_counterfactual=args.compute_counterfactual,
+                logger=logger,
             )
 
     logger.info("Training process completed successfully")
