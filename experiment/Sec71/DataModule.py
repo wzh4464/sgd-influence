@@ -1,3 +1,16 @@
+###
+# File: /DataModule.py
+# Created Date: 9th September 2024
+# Author: Zihan
+# -----
+# Last Modified: Monday, 16th September 2024 10:00:24 am
+# Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
+# -----
+# HISTORY:
+# Date      		By   	Comments
+# ----------		------	---------------------------------------------------------
+###
+
 import os
 import numpy as np
 import pandas as pd
@@ -5,6 +18,11 @@ from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+import pickle
+from filelock import FileLock
+import logging
+from logging_utils import setup_logging
 
 columns = [
     "Age",
@@ -91,89 +109,189 @@ def native(country):
 
 
 class DataModule:
-    def __init__(self, normalize=True, append_one=True):
+    def __init__(self, normalize=True, append_one=True, data_dir=None):
         self.normalize = normalize
         self.append_one = append_one
+        if data_dir is None:
+            self.data_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "data"
+            )
+        else:
+            self.data_dir = data_dir
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Use the logger configured in the main script
+        self.logger = setup_logging("DataModule", 0, output_dir="logs", level=logging.INFO)
+        self.logger.info(
+            f"DataModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
+        )
 
     def load(self):
-        pass
+        raise NotImplementedError
 
     def fetch(self, n_tr, n_val, n_test, seed=0):
-        x, y = self.load()
-
-        # split data
-        x_tr, x_val, y_tr, y_val = train_test_split(
-            x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+        cache_file = os.path.join(
+            self.data_dir,
+            f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
         )
-        x_val, x_test, y_val, y_test = train_test_split(
-            x_val, y_val, train_size=n_val, test_size=n_test, random_state=seed + 1
+        lock_file = cache_file + ".lock"
+        self.logger.info(
+            f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
         )
+        self.logger.info(f"Cache file: {cache_file}")
 
-        # process x
-        if self.normalize:
-            scaler = StandardScaler()
-            scaler.fit(x_tr)
-            x_tr = scaler.transform(x_tr)
-            x_val = scaler.transform(x_val)
-            x_test = scaler.transform(x_test)
-        if self.append_one:
-            x_tr = np.c_[x_tr, np.ones(n_tr)]
-            x_val = np.c_[x_val, np.ones(n_val)]
-            x_test = np.c_[x_test, np.ones(n_test)]
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                self.logger.info(
+                    f"Cache file found. Attempting to load from {cache_file}"
+                )
+                try:
+                    with open(cache_file, "rb") as f:
+                        result = pickle.load(f)
+                    self.logger.info("Successfully loaded data from cache")
+                    return result
+                except (EOFError, pickle.UnpicklingError) as e:
+                    self.logger.error(f"Error loading cache file: {str(e)}")
+                    self.logger.info(
+                        "Removing corrupted cache file and regenerating data"
+                    )
+                    os.remove(cache_file)
+                except Exception as e:
+                    self.logger.error(f"Unexpected error loading cache file: {str(e)}")
+                    raise
 
-        return (x_tr, y_tr), (x_val, y_val), (x_test, y_test)
+            self.logger.info(
+                "Cache not found or corrupted. Loading and processing data."
+            )
+            try:
+                x, y = self.load()
+                self.logger.info(
+                    f"Data loaded. Shape of x: {x.shape}, Shape of y: {y.shape}"
+                )
+
+                # split data
+                x_tr, x_val, y_tr, y_val = train_test_split(
+                    x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+                )
+                x_val, x_test, y_val, y_test = train_test_split(
+                    x_val,
+                    y_val,
+                    train_size=n_val,
+                    test_size=n_test,
+                    random_state=seed + 1,
+                )
+                self.logger.info(
+                    f"Data split completed. Shapes: x_tr: {x_tr.shape}, x_val: {x_val.shape}, x_test: {x_test.shape}"
+                )
+
+                # process x
+                if self.normalize:
+                    self.logger.info("Normalizing data")
+                    scaler = StandardScaler()
+                    scaler.fit(x_tr)
+                    x_tr = scaler.transform(x_tr)
+                    x_val = scaler.transform(x_val)
+                    x_test = scaler.transform(x_test)
+
+                if self.append_one:
+                    self.logger.info("Appending ones to data")
+                    x_tr = np.c_[x_tr, np.ones(n_tr)]
+                    x_val = np.c_[x_val, np.ones(n_val)]
+                    x_test = np.c_[x_test, np.ones(n_test)]
+
+                result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
+
+                self.logger.info(f"Saving processed data to cache file: {cache_file}")
+                with open(cache_file, "wb") as f:
+                    pickle.dump(result, f)
+                self.logger.info("Data successfully saved to cache")
+
+                return result
+
+            except Exception as e:
+                self.logger.error(f"Error in data processing: {str(e)}")
+                if os.path.exists(cache_file):
+                    os.remove(cache_file)
+                raise
 
 
 class MnistModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_path="data/mnist.npz"):
-        import tensorflow as tf
-
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
+        super().__init__(normalize, append_one, data_dir)
         self.mnist = tf.keras.datasets.mnist
-        self.data_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), data_path
-        )
 
     def load(self):
-        (x_train, y_train), (_, _) = self.mnist.load_data(path=self.data_path)
+        cache_file = os.path.join(self.data_dir, "mnist_processed_data.pkl")
+        lock_file = cache_file + ".lock"
 
-        x_train = x_train.reshape(-1, 28 * 28) / 255.0
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
 
-        xtr1 = x_train[y_train == 1]
-        xtr7 = x_train[y_train == 7]
+            # Use TensorFlow to load MNIST data
+            (x_train, y_train), (_, _) = self.mnist.load_data()
 
-        x = np.r_[xtr1, xtr7]
-        y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+            x_train = x_train.reshape(-1, 28 * 28) / 255.0
 
-        return x, y
+            xtr1 = x_train[y_train == 1]
+            xtr7 = x_train[y_train == 7]
+
+            x = np.r_[xtr1, xtr7]
+            y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
 
 
 class NewsModule(DataModule):
-    def __init__(self, normalize=True, append_one=False):
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
+        if data_dir is None:
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        super().__init__(normalize, append_one, data_dir)
 
     def load(self):
-        categories = ["comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware"]
-        newsgroups_train = fetch_20newsgroups(
-            subset="train",
-            remove=("headers", "footers", "quotes"),
-            categories=categories,
-        )
-        newsgroups_test = fetch_20newsgroups(
-            subset="test",
-            remove=("headers", "footers", "quotes"),
-            categories=categories,
-        )
-        vectorizer = TfidfVectorizer(stop_words="english", min_df=0.001, max_df=0.20)
-        vectors = vectorizer.fit_transform(newsgroups_train.data)
-        vectors_test = vectorizer.transform(newsgroups_test.data)
-        x1 = vectors
-        y1 = newsgroups_train.target
-        x2 = vectors_test
-        y2 = newsgroups_test.target
-        x = np.array(np.r_[x1.todense(), x2.todense()])
-        y = np.r_[y1, y2]
-        return x, y
+        cache_file = os.path.join(self.data_dir, "news_data.pkl")
+        lock_file = cache_file + ".lock"
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            categories = ["comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware"]
+            newsgroups_train = fetch_20newsgroups(
+                subset="train",
+                remove=("headers", "footers", "quotes"),
+                categories=categories,
+            )
+            newsgroups_test = fetch_20newsgroups(
+                subset="test",
+                remove=("headers", "footers", "quotes"),
+                categories=categories,
+            )
+            vectorizer = TfidfVectorizer(
+                stop_words="english", min_df=0.001, max_df=0.20
+            )
+            vectors = vectorizer.fit_transform(newsgroups_train.data)
+            vectors_test = vectorizer.transform(newsgroups_test.data)
+            x1 = vectors
+            y1 = newsgroups_train.target
+            x2 = vectors_test
+            y2 = newsgroups_test.target
+            x = np.array(np.r_[x1.todense(), x2.todense()])
+            y = np.r_[y1, y2]
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result
 
 
 class AdultModule(DataModule):
@@ -221,3 +339,67 @@ class AdultModule(DataModule):
         x = df.drop(["Income"], axis=1).values
         y = df["Income"].values
         return x, y
+
+
+class CifarModule(DataModule):
+    def __init__(self, cifar_version=10, normalize=True, append_one=False, data_dir=None):
+        super().__init__(normalize, append_one, data_dir)
+        self.cifar_version = cifar_version
+    def load(self):
+        cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
+        lock_file = cache_file + ".lock"
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            if self.cifar_version == 10:
+                (x_train, y_train), (x_test, y_test) = (
+                    tf.keras.datasets.cifar10.load_data()
+                )
+            else:  # CIFAR-100
+                (x_train, y_train), (x_test, y_test) = (
+                    tf.keras.datasets.cifar100.load_data()
+                )
+
+            # Combine train and test data
+            x = np.vstack((x_train, x_test))
+            y = np.vstack((y_train, y_test)).squeeze()
+
+            # Flatten the images
+            x = x.reshape(x.shape[0], -1)
+
+            # Normalize pixel values to be between 0 and 1
+            x = x.astype("float32") / 255.0
+
+            # For binary classification, we'll use the first two classes
+            mask = (y == 0) | (y == 1)
+            x = x[mask]
+            y = y[mask]
+
+            # Make labels 0 and 1
+            y = (y == 1).astype(int)
+
+            # Balanced data sampling: ensure 50/50 class distribution
+            class_0_indices = np.where(y == 0)[0]
+            class_1_indices = np.where(y == 1)[0]
+            min_class_samples = min(len(class_0_indices), len(class_1_indices))
+
+            # Take equal number of samples from both classes
+            balanced_indices = np.concatenate(
+                [
+                    np.random.choice(class_0_indices, min_class_samples, replace=False),
+                    np.random.choice(class_1_indices, min_class_samples, replace=False),
+                ]
+            )
+
+            x = x[balanced_indices]
+            y = y[balanced_indices]
+
+            result = (x, y)
+
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            return result

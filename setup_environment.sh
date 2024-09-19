@@ -18,6 +18,9 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.4 tensorflow -c pyt
 # 安装 scikit-learn
 conda install scikit-learn -y
 
+# GPUtil
+conda install gputil -y
+
 # 打印安装的 Python 和 pip 版本
 python --version
 pip --version

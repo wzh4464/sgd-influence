@@ -1,91 +1,98 @@
-import os, sys
+###
+# File: experiment/Sec71/train.py
+# Created Date: September 9th 2024
+# Author: Zihan
+# -----
+# Last Modified: Thursday, 19th September 2024 2:59:37 pm
+# Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
+# -----
+# HISTORY:
+# Date      		By   	Comments
+# ----------		------	---------------------------------------------------------
+###
+
+import os
 import argparse
 import copy
 import numpy as np
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-import joblib
+from sklearn.linear_model import LogisticRegressionCV
 import torch
 import torch.nn as nn
-from DataModule import MnistModule, NewsModule, AdultModule
-from MyNet import LogReg, DNN, NetList
+from typing import Tuple, Dict, Any
+import traceback
+import pandas as pd
+from logging_utils import setup_logging
+import random
+
+# Assuming these imports are from local files
+from DataModule import MnistModule, NewsModule, AdultModule, CifarModule
+from MyNet import LogReg, DNN, NetList, CifarCNN
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+file_abspath = os.path.abspath(__file__)
+current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录路径
 
-def settings_logreg(key):
-    assert key in ["mnist", "20news", "adult"]
-    if key == "mnist":
-        module = MnistModule()
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        lr, decay, num_epoch, batch_size = 0.1, True, 5, 5
-        return module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size)
-    elif key == "20news":
+
+def get_data_module(
+    key: str, csv_path: str
+) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
+    if key == "20news":
         module = NewsModule()
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        lr, decay, num_epoch, batch_size = 0.01, True, 10, 5
-        return module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size)
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"lr": 0.01, "decay": True, "num_epoch": 12, "batch_size": 20}
     elif key == "adult":
-        module = AdultModule(csv_path="./data")
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        lr, decay, num_epoch, batch_size = 0.1, True, 20, 5
-        return module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size)
-
-
-def settings_dnn(key):
-    assert key in ["mnist", "20news", "adult"]
-    if key == "mnist":
+        module = AdultModule(csv_path=csv_path)
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"lr": 0.1, "decay": True, "num_epoch": 20, "batch_size": 5}
+    elif key == "mnist":
         module = MnistModule()
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        m = [8, 8]
-        alpha = 0.001
-        lr, decay, num_epoch, batch_size = 0.1, False, 12, 20
-        return (
-            module,
-            (n_tr, n_val, n_test),
-            m,
-            alpha,
-            (lr, decay, num_epoch, batch_size),
-        )
-    elif key == "20news":
-        module = NewsModule()
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        m = [8, 8]
-        alpha = 0.001
-        lr, decay, num_epoch, batch_size = 0.1, False, 10, 20
-        return (
-            module,
-            (n_tr, n_val, n_test),
-            m,
-            alpha,
-            (lr, decay, num_epoch, batch_size),
-        )
-    elif key == "adult":
-        module = AdultModule(csv_path="./data")
-        module.append_one = False
-        n_tr, n_val, n_test = 200, 200, 200
-        m = [8, 8]
-        alpha = 0.001
-        lr, decay, num_epoch, batch_size = 0.1, False, 12, 20
-        return (
-            module,
-            (n_tr, n_val, n_test),
-            m,
-            alpha,
-            (lr, decay, num_epoch, batch_size),
-        )
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"lr": 0.01, "decay": True, "num_epoch": 5, "batch_size": 5}
+    elif key == "cifar":
+        module = CifarModule()
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"lr": 0.1, "decay": True, "num_epoch": 10, "batch_size": 64}
+    else:
+        raise ValueError(f"Unsupported dataset: {key}")
+
+    module.append_one = False
+    return module, data_sizes, training_params
 
 
-def test(key, model_type, seed=0, gpu=0):
-    dn = f"./{key}_{model_type}"
-    fn = "%s/sgd%03d.dat" % (dn, seed)
+def get_model(model_type: str, input_dim: int, device: str) -> nn.Module:
+    if model_type == "logreg":
+        return LogReg(input_dim).to(device)
+    elif model_type == "dnn":
+        return DNN(input_dim).to(device)
+    elif model_type == "cnn":
+        return CifarCNN().to(device)
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
+
+
+def train_and_save(
+    key: str,
+    model_type: str,
+    seed: int = 0,
+    gpu: int = 0,
+    csv_path: str = "./data",
+    custom_n_tr: int = None,
+    custom_n_val: int = None,
+    custom_n_test: int = None,
+    custom_num_epoch: int = None,
+    custom_batch_size: int = None,
+    compute_counterfactual: bool = True,
+    logger=None,
+) -> Dict[str, Any]:
+    if csv_path is None:
+        csv_path = os.path.join(current_dir, "data")
+
+    # 创建存储模型的目录，基于当前脚本路径
+    dn = os.path.join(current_dir, f"{key}_{model_type}")
+    fn = os.path.join(dn, f"sgd{seed:03d}.dat")
     os.makedirs(dn, exist_ok=True)
-    # device = "cuda:%d" % (gpu,)
 
     if torch.backends.mps.is_available():
         device = "mps"
@@ -93,94 +100,134 @@ def test(key, model_type, seed=0, gpu=0):
     else:
         device = "cpu"
 
-    # fetch data
-    if model_type == "logreg":
-        module, (n_tr, n_val, n_test), (lr, decay, num_epoch, batch_size) = (
-            settings_logreg(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+    # Fetch data and settings
+    module, data_sizes, training_params = get_data_module(key, csv_path)
 
-        # selection of alpha
+    # Override default values if custom values are provided
+    if custom_n_tr:
+        data_sizes["n_tr"] = custom_n_tr
+    if custom_n_val:
+        data_sizes["n_val"] = custom_n_val
+    if custom_n_test:
+        data_sizes["n_test"] = custom_n_test
+    if custom_num_epoch:
+        training_params["num_epoch"] = custom_num_epoch
+    if custom_batch_size:
+        training_params["batch_size"] = custom_batch_size
+
+    z_tr, z_val, _ = module.fetch(
+        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
+    )
+    (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+
+    logger.info(
+        f"Dataset {key} loaded with {data_sizes['n_tr']} training samples, {data_sizes['n_val']} validation samples"
+    )
+
+    # Model selection and hyperparameter tuning
+    if model_type == "logreg":
         model = LogisticRegressionCV(random_state=seed, fit_intercept=False, cv=5)
         model.fit(x_tr, y_tr)
-        alpha = 1 / (model.C_[0] * n_tr)
+        alpha = 1 / (model.C_[0] * data_sizes["n_tr"])
+    elif model_type in {"dnn", "cnn"}:
+        alpha = 0.001  # You might want to tune this for DNN/CNN
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
 
-        # model
-        net_func = lambda: LogReg(x_tr.shape[1]).to(device)
-    elif model_type == "dnn":
-        module, (n_tr, n_val, n_test), m, alpha, (lr, decay, num_epoch, batch_size) = (
-            settings_dnn(key)
-        )
-        z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
-        (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-        net_func = lambda: DNN(x_tr.shape[1]).to(device)
+    logger.info(f"Model {model_type} initialized with alpha={alpha}")
 
-    # to tensor
+    # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
     y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
     y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
 
-    # fit
-    num_steps = int(np.ceil(n_tr / batch_size))
+    # Reshape for CNN if necessary
+    if model_type == "cnn":
+        x_tr = x_tr.view(-1, 3, 32, 32)
+        x_val = x_val.view(-1, 3, 32, 32)
+
+    # Training setup
+    net_func = lambda: get_model(model_type, x_tr.shape[1], device)
+    num_steps = int(np.ceil(data_sizes["n_tr"] / training_params["batch_size"]))
     list_of_sgd_models = []
-    list_of_counterfactual_models = [NetList([]) for _ in range(n_tr)]  # 每个样本有一个 NetList，保存该样本的训练过程
+    list_of_counterfactual_models = (
+        [NetList([]) for _ in range(data_sizes["n_tr"])]
+        if compute_counterfactual
+        else None
+    )
     main_losses = []
-    # counterfactual_losses = np.zeros((n_tr, num_epoch * num_steps + 1))
-    train_losses = np.zeros(num_epoch * num_steps + 1)  # 用于保存每步的训练损失
-    train_losses[0] = nn.BCEWithLogitsLoss()(net_func()(x_tr), y_tr).item() # 记录初始损失
-    # main_losses.append(train_losses[0])
+    test_accuracies = []
+    train_losses = np.zeros(training_params["num_epoch"] * num_steps + 1)
 
-    val_interval = 10  # 设置验证损失的计算间隔
+    logger.info(f"Starting training for {training_params['num_epoch']} epochs")
 
-    for n in range(-1, n_tr):
+    # Training loop
+    for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.0)
-        lr_n = lr
+        # Training setup
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=0.01,
+            momentum=0.0,
+            weight_decay=1e-4,  # 学习率变小，加入L2正则化
+        )
+
+        lr_n = training_params["lr"]
         skip = [n]
         info = []
         c = 0
-        for epoch in range(num_epoch):
+
+        for epoch in range(training_params["num_epoch"]):
+            epoch_loss = 0.0
             np.random.seed(epoch)
-            idx_list = np.array_split(np.random.permutation(n_tr), num_steps)
+            idx_list = np.array_split(
+                np.random.permutation(data_sizes["n_tr"]), num_steps
+            )
             for i in range(num_steps):
                 info.append({"idx": idx_list[i], "lr": lr_n})
                 c += 1
 
-                # store model
+                # Save models and losses
+                m = net_func()
+                m.load_state_dict(copy.deepcopy(model.state_dict()))
                 if n < 0:
-                    # 保存 SGD 模型和验证损失（如果符合间隔要求）
-                    m = net_func()
-                    m.load_state_dict(copy.deepcopy(model.state_dict()))
+                    m.to("cpu")  # Move model to CPU memory
                     list_of_sgd_models.append(m)
-                    if c % val_interval == 0 or c == num_steps * num_epoch:
+                    if (
+                        c % num_steps == 0
+                        or c == num_steps * training_params["num_epoch"]
+                    ):
                         with torch.no_grad():
-                            main_losses.append(loss_fn(model(x_val), y_val).item())
-                else:
-                    # 保存反事实模型和验证损失（如果符合间隔要求）
-                    m = net_func()
-                    m.load_state_dict(copy.deepcopy(model.state_dict()))
-                    list_of_counterfactual_models[n].models.append(m)
-                    # if c % val_interval == 0 or c == num_steps * num_epoch:
-                    #     with torch.no_grad():
-                    #         counterfactual_losses[n, c - 1] = loss_fn(
-                    #             model(x_val), y_val
-                    #         ).item()
+                            val_loss = loss_fn(model(x_val), y_val).item()
+                            main_losses.append(val_loss)
+                            test_pred = (model(x_val) > 0).float()
+                            test_acc = (test_pred == y_val).float().mean().item()
+                            test_accuracies.append(test_acc)
+                            logger.info(
+                                f"Epoch {epoch+1}/{training_params['num_epoch']}, Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
+                            )
+                elif compute_counterfactual:
+                    if (
+                        c % num_steps == 0
+                        or c == num_steps * training_params["num_epoch"]
+                    ):
+                        m.to("cpu")
+                        list_of_counterfactual_models[n].models.append(m)
 
-                # SGD 优化
+                # SGD optimization
                 idx = idx_list[i]
                 b = idx.size
                 idx = np.setdiff1d(idx, skip)
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
 
-                # 记录训练损失
                 train_losses[c] = loss.item()
+                epoch_loss += loss.item()
 
-                # 添加正则化项
+                # Add regularization
                 for p in model.parameters():
                     loss += 0.5 * alpha * (p * p).sum()
                 optimizer.zero_grad()
@@ -189,49 +236,201 @@ def test(key, model_type, seed=0, gpu=0):
                     p.grad.data *= idx.size / b
                 optimizer.step()
 
-                # 学习率衰减
-                if decay:
+                # Learning rate decay
+                if training_params["decay"]:
                     lr_n *= np.sqrt(c / (c + 1))
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
 
-        # 最后一步保存模型
+                # Clean up
+                del z, loss
+                torch.cuda.empty_cache()
+
+            # End of epoch logging
+            logger.info(
+                f"Epoch {epoch+1}/{training_params['num_epoch']}, Average Training Loss: {epoch_loss/num_steps:.4f}"
+            )
+            torch.cuda.empty_cache()
+
+        # Save final model
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
+            m.to("cpu")  # Move model to CPU memory
             list_of_sgd_models.append(m)
-            main_losses.append(loss_fn(model(x_val), y_val).item())
-        else:
+            with torch.no_grad():
+                val_loss = loss_fn(model(x_val), y_val).item()
+                main_losses.append(val_loss)
+                test_pred = (model(x_val) > 0).float()
+                test_acc = (test_pred == y_val).float().mean().item()
+                test_accuracies.append(test_acc)
+                logger.info(
+                    f"Final Validation Loss: {val_loss:.4f}, Final Test Accuracy: {test_acc:.4f}"
+                )
+
+        elif compute_counterfactual:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
+            m.to("cpu")  # Move model to CPU memory
             list_of_counterfactual_models[n].models.append(m)
 
-    # 保存所有数据
-    joblib.dump(
+        # Clean up after each iteration
+        del model
+        torch.cuda.empty_cache()
+
+    # Save more detailed information
+    data_to_save = {
+        "models": NetList(list_of_sgd_models),
+        # models: NetList object containing (num_epoch * num_steps + 1) models
+        # Each model's shape depends on the model_type (logreg, dnn, or cnn)
+
+        "info": info,
+        # info: List of dictionaries, length = (num_epoch * num_steps)
+        # Each dict contains 'idx' (array of integers) and 'lr' (float)
+
+        "counterfactual": list_of_counterfactual_models,
+        # counterfactual: List of NetList objects if compute_counterfactual is True, else None
+        # Length = n_tr if compute_counterfactual is True
+        # Each NetList contains (num_epoch + 1) models
+
+        "alpha": alpha,
+        # alpha: float, regularization parameter
+
+        "main_losses": main_losses,
+        # main_losses: List of floats, length = (num_epoch + 1)
+        # Contains validation losses at the end of each epoch
+
+        "test_accuracies": test_accuracies,
+        # test_accuracies: List of floats, length = (num_epoch + 1)
+        # Contains test accuracies at the end of each epoch
+
+        "train_losses": train_losses,
+        # train_losses: numpy array of shape (num_epoch * num_steps + 1,)
+        # Contains training losses for each batch
+
+        "seed": seed,
+        # seed: integer, random seed used
+
+        "n_tr": data_sizes["n_tr"],
+        # n_tr: integer, number of training samples
+
+        "n_val": data_sizes["n_val"],
+        # n_val: integer, number of validation samples
+
+        "n_test": data_sizes["n_test"],
+        # n_test: integer, number of test samples
+
+        "num_epoch": training_params["num_epoch"],
+        # num_epoch: integer, number of training epochs
+
+        "batch_size": training_params["batch_size"],
+        # batch_size: integer, size of each training batch
+
+        "lr": training_params["lr"],
+        # lr: float, initial learning rate
+
+        "decay": training_params["decay"],
+        # decay: boolean, whether learning rate decay is applied
+    }
+
+    # Save data
+    torch.save(data_to_save, fn)
+
+    # Save main_losses and test_accuracies to CSV
+    csv_fn = os.path.join(dn, f"metrics_{seed:03d}.csv")
+    pd.DataFrame(
         {
-            "models": NetList(list_of_sgd_models),
-            "info": info,
-            "counterfactual": list_of_counterfactual_models,
-            "alpha": alpha,
-            "main_losses": main_losses,
-            # "counterfactual_losses": counterfactual_losses,
-            "train_losses": train_losses,  # 保存训练损失
-        },
-        fn,
-    )
+            "epoch": range(len(main_losses)),
+            "main_loss": main_losses,
+            "test_accuracy": test_accuracies,
+        }
+    ).to_csv(csv_fn, index=False)
+
+    logger.info(f"Training completed. Results saved to {fn} and {csv_fn}")
+
+    return data_to_save
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Train Models & Save")
     parser.add_argument("--target", default="adult", type=str, help="target data")
     parser.add_argument("--model", default="logreg", type=str, help="model type")
     parser.add_argument("--seed", default=0, type=int, help="random seed")
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
+    parser.add_argument("--n_tr", type=int, help="number of training samples")
+    parser.add_argument("--n_val", type=int, help="number of validation samples")
+    parser.add_argument("--n_test", type=int, help="number of test samples")
+    parser.add_argument("--num_epoch", type=int, help="number of epochs")
+    parser.add_argument("--batch_size", type=int, help="batch size")
+    parser.add_argument(
+        "--no-loo",
+        action="store_false",
+        dest="compute_counterfactual",  # 设置为 False
+        help="Disable the computation of counterfactual models (leave-one-out).",
+    )
+
+    # 默认 compute_counterfactual 为 True
+    parser.set_defaults(compute_counterfactual=True)
+
     args = parser.parse_args()
-    assert args.target in ["mnist", "20news", "adult"]
-    assert args.model in ["logreg", "dnn"]
+
+    # Setup logging
+    logger = setup_logging(f"{args.target}_{args.model}", args.seed)
+
+    try:
+        _validate_arguments(logger, args)
+    except AssertionError as e:
+        logger.error(f"Invalid argument: {str(e)}")
+        logger.error(traceback.format_exc())
+    except Exception as e:
+        logger.error(f"An error occurred during the training process: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
+def _validate_arguments(logger, args):
+    logger.info("Starting the training process")
+    logger.info(f"Arguments: {args}")
+
+    assert args.target in [
+        "mnist",
+        "20news",
+        "adult",
+        "cifar",
+    ], "Invalid target data"
+    assert args.model in ["logreg", "dnn", "cnn"], "Invalid model type"
+
     if args.seed >= 0:
-        test(args.target, args.model, args.seed, args.gpu)
+        train_and_save(
+            args.target,
+            args.model,
+            args.seed,
+            args.gpu,
+            custom_n_tr=args.n_tr,
+            custom_n_val=args.n_val,
+            custom_n_test=args.n_test,
+            custom_num_epoch=args.num_epoch,
+            custom_batch_size=args.batch_size,
+            compute_counterfactual=args.compute_counterfactual,
+            logger=logger,
+        )
     else:
         for seed in range(100):
-            test(args.target, args.model, seed, args.gpu)
+            train_and_save(
+                args.target,
+                args.model,
+                seed,
+                args.gpu,
+                custom_n_tr=args.n_tr,
+                custom_n_val=args.n_val,
+                custom_n_test=args.n_test,
+                custom_num_epoch=args.num_epoch,
+                custom_batch_size=args.batch_size,
+                compute_counterfactual=args.compute_counterfactual,
+                logger=logger,
+            )
+
+    logger.info("Training process completed successfully")
+
+
+if __name__ == "__main__":
+    main()
