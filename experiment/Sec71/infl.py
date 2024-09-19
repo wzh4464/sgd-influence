@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import torch
-from DataModule import MnistModule, NewsModule, AdultModule
+from DataModule import MnistModule, NewsModule, AdultModule, EMNISTModule
 from MyNet import LogReg, DNN, NetList
 import warnings
 from logging_utils import setup_logging
@@ -30,6 +30,8 @@ def get_data_module(key):
         return NewsModule()
     elif key == "adult":
         return AdultModule(csv_path=os.path.join(SCRIPT_DIR, "data"))
+    elif key == "emnist":
+        return EMNISTModule()
     else:
         raise ValueError(f"Unsupported dataset: {key}")
 
@@ -266,7 +268,7 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None):
 
     steps_per_epoch = (res["n_tr"] + res["batch_size"] - 1) // res["batch_size"]
     total_steps = custom_epoch * steps_per_epoch
-    
+
     logger.info(f"SPE: {steps_per_epoch}")
     logger.info(f"Total steps: {total_steps}")
 
@@ -355,7 +357,7 @@ def main():
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
     args = parser.parse_args()
 
-    if args.target not in ["mnist", "20news", "adult"]:
+    if args.target not in ["mnist", "20news", "adult", "emnist"]:
         raise ValueError(
             "Invalid target data. Choose from 'mnist', '20news', or 'adult'."
         )

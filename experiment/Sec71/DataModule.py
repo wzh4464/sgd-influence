@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 16th September 2024 10:00:24 am
+# Last Modified: Thursday, 19th September 2024 9:38:57 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -18,6 +18,7 @@ from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from emnist import extract_training_samples
 import tensorflow as tf
 import pickle
 from filelock import FileLock
@@ -121,7 +122,9 @@ class DataModule:
         os.makedirs(self.data_dir, exist_ok=True)
 
         # Use the logger configured in the main script
-        self.logger = setup_logging("DataModule", 0, output_dir="logs", level=logging.INFO)
+        self.logger = setup_logging(
+            "DataModule", 0, output_dir="logs", level=logging.INFO
+        )
         self.logger.info(
             f"DataModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
         )
@@ -342,9 +345,12 @@ class AdultModule(DataModule):
 
 
 class CifarModule(DataModule):
-    def __init__(self, cifar_version=10, normalize=True, append_one=False, data_dir=None):
+    def __init__(
+        self, cifar_version=10, normalize=True, append_one=False, data_dir=None
+    ):
         super().__init__(normalize, append_one, data_dir)
         self.cifar_version = cifar_version
+
     def load(self):
         cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
         lock_file = cache_file + ".lock"
@@ -402,4 +408,131 @@ class CifarModule(DataModule):
             with open(cache_file, "wb") as f:
                 pickle.dump(result, f)
 
+            return result
+
+
+class EMNISTModule:
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
+        """
+        Initialize the EMNISTModule.
+        Args:
+            normalize (bool): Whether to normalize the data.
+            append_one (bool): Whether to append a column of ones to the data.
+            data_dir (str): Directory where the data will be stored.
+        """
+        self.normalize = normalize
+        self.append_one = append_one
+        if data_dir is None:
+            self.data_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "data"
+            )
+        else:
+            self.data_dir = "~/.cache/emnist/"
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Use the logger configured in the main script
+        self.logger = setup_logging(
+            "EMNISTModule", 0, output_dir="logs", level=logging.INFO
+        )
+        self.logger.info(
+            f"EMNISTModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
+        )
+
+    def load(self):
+        """
+        Loads the EMNIST dataset, processes it, and returns it.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Processed EMNIST dataset (features and labels).
+        """
+        cache_file = os.path.join(self.data_dir, "emnist_processed_data.pkl")
+        lock_file = cache_file + ".lock"
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                self.logger.info("Loading data from cache.")
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            self.logger.info("Cache not found. Loading EMNIST dataset.")
+
+            # Load 'letters' dataset for binary classification between 'A' and 'B'
+            x_train, y_train = extract_training_samples("letters")
+
+            # Reshape and normalize the images
+            x_train = x_train.reshape(-1, 28 * 28).astype("float32") / 255.0
+
+            # Select classes 'A' (label 1) and 'B' (label 2)
+            mask = (y_train == 1) | (y_train == 2)
+            x_train = x_train[mask]
+            y_train = y_train[mask]
+            y_train = (y_train == 2).astype(
+                int
+            )  # Binary classification: 'A' = 0, 'B' = 1
+
+            # Append a column of ones if needed
+            if self.append_one:
+                x_train = np.c_[x_train, np.ones(x_train.shape[0])]
+
+            # Save to cache
+            result = (x_train, y_train)
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            self.logger.info("Data saved to cache.")
+            return result
+
+    def fetch(self, n_tr, n_val, n_test, seed=0):
+        """
+        Fetches and splits the data into training, validation, and test sets.
+
+        Args:
+            n_tr (int): Number of training samples.
+            n_val (int): Number of validation samples.
+            n_test (int): Number of test samples.
+            seed (int): Random seed for reproducibility.
+
+        Returns:
+            Tuple: Split dataset (training, validation, test).
+        """
+        cache_file = os.path.join(
+            self.data_dir,
+            f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
+        )
+        lock_file = cache_file + ".lock"
+        self.logger.info(
+            f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
+        )
+        self.logger.info(f"Cache file: {cache_file}")
+
+        with FileLock(lock_file):
+            if os.path.exists(cache_file):
+                self.logger.info(f"Loading split data from cache file {cache_file}.")
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+
+            self.logger.info("Cache not found. Loading and splitting data.")
+            x, y = self.load()
+
+            # Split data
+            from sklearn.model_selection import train_test_split
+
+            x_tr, x_temp, y_tr, y_temp = train_test_split(
+                x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+            )
+            x_val, x_test, y_val, y_test = train_test_split(
+                x_temp,
+                y_temp,
+                train_size=n_val,
+                test_size=n_test,
+                random_state=seed + 1,
+            )
+
+            result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
+
+            # Save the result to cache
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
+
+            self.logger.info("Data split and saved to cache.")
             return result

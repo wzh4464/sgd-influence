@@ -49,11 +49,11 @@ TRAIN_SCRIPT="$WORK_DIR/train.py"
 # '
 
 PYTHON_COMMAND='
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model dnn --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type lie --seed "$seed" --gpu 0;
 '
 
 # 显示调试信息
