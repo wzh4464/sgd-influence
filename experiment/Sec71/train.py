@@ -85,7 +85,13 @@ def test(key, model_type, seed=0, gpu=0):
     dn = f"./{key}_{model_type}"
     fn = "%s/sgd%03d.dat" % (dn, seed)
     os.makedirs(dn, exist_ok=True)
-    device = "cuda:%d" % (gpu,)
+    # device = "cuda:%d" % (gpu,)
+
+    if torch.backends.mps.is_available():
+        device = "mps"
+        print("Using MPS")
+    else:
+        device = "cpu"
 
     # fetch data
     if model_type == "logreg":
