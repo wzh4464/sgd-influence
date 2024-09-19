@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Wednesday, 18th September 2024 3:33:35 pm
+# Last Modified: Thursday, 19th September 2024 3:54:35 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -49,7 +49,7 @@ def get_data_module(
     elif key == "mnist":
         module = MnistModule()
         data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"lr": 0.01, "decay": True, "num_epoch": 5, "batch_size": 5}
+        training_params = {"lr": 0.003, "decay": True, "num_epoch": 21, "batch_size": 5}
     elif key == "cifar":
         module = CifarModule()
         data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
