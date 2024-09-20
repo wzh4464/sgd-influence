@@ -3,8 +3,8 @@ import argparse
 import numpy as np
 import pandas as pd
 import torch
-from DataModule import fetch_data_module
-from MyNet import LogReg, DNN, NetList
+from DataModule import fetch_data_module, DATA_MODULE_REGISTRY
+from NetworkModule import NETWORK_REGISTRY, NetList
 import warnings
 from logging_utils import setup_logging
 
@@ -344,14 +344,14 @@ def main():
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
     args = parser.parse_args()
 
-    from DataModule import DATA_MODULE_REGISTRY
-
     if args.target not in DATA_MODULE_REGISTRY:
         raise ValueError(
             f"Invalid target data. Choose from {', '.join(DATA_MODULE_REGISTRY.keys())}."
         )
-    if args.model not in ["logreg", "dnn"]:
-        raise ValueError("Invalid model type. Choose from 'logreg' or 'dnn'.")
+    if args.model not in NETWORK_REGISTRY:
+        raise ValueError(
+            f"Invalid model type. Choose from {', '.join(NETWORK_REGISTRY.keys())}."
+        )
     if args.type not in ["true", "sgd", "nohess", "icml", "lie"]:
         raise ValueError(
             "Invalid influence type. Choose from 'true', 'sgd', 'nohess', 'icml', or 'lie'."
