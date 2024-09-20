@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 11:44:55 am
+# Last Modified: Friday, 20th September 2024 4:28:47 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -170,7 +170,7 @@ def train_and_save(
     )
     main_losses = []
     test_accuracies = []
-    train_losses = np.zeros(training_params["num_epoch"] * num_steps + 1)
+    train_losses = [np.nan]
 
     logger.info(f"Starting training for {training_params['num_epoch']} epochs")
 
@@ -184,7 +184,7 @@ def train_and_save(
             model.parameters(),
             lr=0.01,
             momentum=0.0,
-            weight_decay=1e-4,  # 学习率变小，加入L2正则化
+            # weight_decay=1e-4,  # 学习率变小，加入L2正则化
         )
 
         lr_n = training_params["lr"]
@@ -236,7 +236,13 @@ def train_and_save(
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
 
-                train_losses[c] = loss.item()
+                # train_losses[c] = loss.item()
+                if (
+                    c % num_steps == 0
+                    or c == num_steps * training_params["num_epoch"]
+                ):
+                    train_losses.append(loss.item())
+                    
                 epoch_loss += loss.item()
 
                 # Add regularization
@@ -341,6 +347,7 @@ def train_and_save(
             "epoch": range(len(main_losses)),
             "main_loss": main_losses,
             "test_accuracy": test_accuracies,
+            "train_loss": train_losses,
         }
     ).to_csv(csv_fn, index=False)
 
