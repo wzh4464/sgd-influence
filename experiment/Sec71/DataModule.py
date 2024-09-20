@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Thursday, 19th September 2024 9:38:57 pm
+# Last Modified: Friday, 20th September 2024 11:43:32 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -298,18 +298,18 @@ class NewsModule(DataModule):
 
 
 class AdultModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, csv_path="data"):
+    def __init__(self, normalize=True, append_one=False, data_dir="data"):
         super().__init__(normalize, append_one)
-        self.csv_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), csv_path
+        self.data_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), data_dir
         )
 
     def load(self):
         train = pd.read_csv(
-            os.path.join(self.csv_path, "adult-training.csv"), names=columns
+            os.path.join(self.data_dir, "adult-training.csv"), names=columns
         )
         test = pd.read_csv(
-            os.path.join(self.csv_path, "adult-test.csv"), names=columns, skiprows=1
+            os.path.join(self.data_dir, "adult-test.csv"), names=columns, skiprows=1
         )
         df = pd.concat([train, test], ignore_index=True)
 
@@ -536,3 +536,30 @@ class EMNISTModule:
 
             self.logger.info("Data split and saved to cache.")
             return result
+
+
+# Registry dictionary to map dataset keys to their corresponding modules
+DATA_MODULE_REGISTRY = {}
+
+
+def register_data_module(key: str, module_class):
+    """Register a new data module."""
+    if key in DATA_MODULE_REGISTRY:
+        raise ValueError(f"Key {key} is already registered.")
+    DATA_MODULE_REGISTRY[key] = module_class
+
+
+# Automatically register existing modules
+register_data_module("mnist", MnistModule)
+register_data_module("20news", NewsModule)
+register_data_module("adult", AdultModule)
+register_data_module("cifar", CifarModule)
+register_data_module("emnist", EMNISTModule)
+
+
+def fetch_data_module(key: str, **kwargs):
+    """Retrieve a data module class based on the key."""
+    if key not in DATA_MODULE_REGISTRY:
+        raise ValueError(f"Dataset key {key} is not registered.")
+    return DATA_MODULE_REGISTRY[key](**kwargs)
+

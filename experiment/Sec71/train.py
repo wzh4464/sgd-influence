@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 9:28:48 am
+# Last Modified: Friday, 20th September 2024 11:44:55 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -25,7 +25,7 @@ from logging_utils import setup_logging
 import random
 
 # Assuming these imports are from local files
-from DataModule import MnistModule, NewsModule, AdultModule, CifarModule, EMNISTModule
+from DataModule import DATA_MODULE_REGISTRY
 from MyNet import LogReg, DNN, NetList, CifarCNN
 
 torch.backends.cudnn.deterministic = True
@@ -35,36 +35,34 @@ file_abspath = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录路径
 
 
-def get_data_module(
-    key: str, csv_path: str
+from DataModule import fetch_data_module
+from config import fetch_training_params
+
+AVAILABLE_MODELS = {"logreg", "dnn", "cnn"}
+
+
+def initialize_data_and_params(
+    key: str, model_type: str, csv_path: str
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
-    if key == "mnist":
-        module = MnistModule(data_dir=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {
-            "num_epoch": 21,
-            "batch_size": 60,
-            "lr": 0.003,
-            "decay": True,
-        }
-    elif key == "20news":
-        module = NewsModule(data_dir=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
-    elif key == "adult":
-        module = AdultModule(csv_path=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 1000, "200": 200}
-        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
-    elif key == "cifar":
-        module = CifarModule(data_dir=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
-    elif key == "emnist":  # Add this new condition
-        module = EMNISTModule(data_dir=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.2, "decay": True}
-    else:
-        raise ValueError(f"Unsupported dataset: {key}")
+    """Initialize the data module and fetch training parameters for a dataset and model."""
+    module = fetch_data_module(key, data_dir=csv_path)
+
+    # Fetch the training parameters from the config file based on dataset and network
+    config = fetch_training_params(key, model_type)
+
+    # Use config values if available, otherwise use defaults
+    training_params = {
+        "num_epoch": config.get("num_epoch", 21),
+        "batch_size": config.get("batch_size", 60),
+        "lr": config.get("lr", 0.01),
+        "decay": config.get("decay", True),
+    }
+
+    data_sizes = {
+        "n_tr": config.get("n_tr", 200),
+        "n_val": config.get("n_val", 200),
+        "n_test": config.get("n_test", 200),
+    }
 
     module.append_one = False
     return module, data_sizes, training_params
@@ -92,6 +90,7 @@ def train_and_save(
     custom_n_test: int = None,
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
+    custom_lr: float = None,
     compute_counterfactual: bool = True,
     logger=None,
 ) -> Dict[str, Any]:
@@ -110,7 +109,9 @@ def train_and_save(
         device = "cpu"
 
     # Fetch data and settings
-    module, data_sizes, training_params = get_data_module(key, csv_path)
+    module, data_sizes, training_params = initialize_data_and_params(
+        key, model_type, csv_path
+    )
 
     # Override default values if custom values are provided
     if custom_n_tr:
@@ -123,6 +124,8 @@ def train_and_save(
         training_params["num_epoch"] = custom_num_epoch
     if custom_batch_size:
         training_params["batch_size"] = custom_batch_size
+    if custom_lr:
+        training_params["lr"] = custom_lr
 
     z_tr, z_val, _ = module.fetch(
         data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
@@ -346,6 +349,50 @@ def train_and_save(
     return data_to_save
 
 
+def _validate_arguments(logger, args):
+    logger.info("Starting the training process")
+    logger.info(f"Arguments: {args}")
+
+    if args.target not in DATA_MODULE_REGISTRY:
+        raise ValueError(
+            f"Invalid target data: {args.target}. Available targets: {', '.join(DATA_MODULE_REGISTRY.keys())}"
+        )
+
+    if args.model not in AVAILABLE_MODELS:
+        raise ValueError(
+            f"Invalid model type: {args.model}. Available models: {', '.join(AVAILABLE_MODELS)}"
+        )
+
+    # Fetch default configuration for this dataset-model pair
+    default_config = fetch_training_params(args.target, args.model)
+
+    if args.seed >= 0:
+        _run_training(args, default_config, logger)
+    else:
+        for seed in range(100):
+            args.seed = seed
+            _run_training(args, default_config, logger)
+
+    logger.info("Training process completed successfully")
+
+
+def _run_training(args, default_config, logger):
+    train_and_save(
+        args.target,
+        args.model,
+        args.seed,
+        args.gpu,
+        custom_n_tr=args.n_tr or default_config.get("n_tr"),
+        custom_n_val=args.n_val or default_config.get("n_val"),
+        custom_n_test=args.n_test or default_config.get("n_test"),
+        custom_num_epoch=args.num_epoch or default_config.get("num_epoch"),
+        custom_batch_size=args.batch_size or default_config.get("batch_size"),
+        custom_lr=args.lr or default_config.get("lr"),
+        compute_counterfactual=args.compute_counterfactual,
+        logger=logger,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train Models & Save")
     parser.add_argument("--target", default="adult", type=str, help="target data")
@@ -357,75 +404,27 @@ def main():
     parser.add_argument("--n_test", type=int, help="number of test samples")
     parser.add_argument("--num_epoch", type=int, help="number of epochs")
     parser.add_argument("--batch_size", type=int, help="batch size")
+    parser.add_argument("--lr", type=float, help="initial learning rate")
     parser.add_argument(
         "--no-loo",
         action="store_false",
-        dest="compute_counterfactual",  # 设置为 False
+        dest="compute_counterfactual",
         help="Disable the computation of counterfactual models (leave-one-out).",
     )
 
-    # 默认 compute_counterfactual 为 True
     parser.set_defaults(compute_counterfactual=True)
 
     args = parser.parse_args()
 
-    # Setup logging
     logger = setup_logging(f"{args.target}_{args.model}", args.seed)
 
     try:
         _validate_arguments(logger, args)
-    except AssertionError as e:
+    except ValueError as e:
         logger.error(f"Invalid argument: {str(e)}")
-        logger.error(traceback.format_exc())
     except Exception as e:
         logger.error(f"An error occurred during the training process: {str(e)}")
         logger.error(traceback.format_exc())
-
-
-def _validate_arguments(logger, args):
-    logger.info("Starting the training process")
-    logger.info(f"Arguments: {args}")
-
-    assert args.target in [
-        "mnist",
-        "20news",
-        "adult",
-        "cifar",
-        "emnist",
-    ], "Invalid target data"
-    assert args.model in ["logreg", "dnn", "cnn"], "Invalid model type"
-
-    if args.seed >= 0:
-        train_and_save(
-            args.target,
-            args.model,
-            args.seed,
-            args.gpu,
-            custom_n_tr=args.n_tr,
-            custom_n_val=args.n_val,
-            custom_n_test=args.n_test,
-            custom_num_epoch=args.num_epoch,
-            custom_batch_size=args.batch_size,
-            compute_counterfactual=args.compute_counterfactual,
-            logger=logger,
-        )
-    else:
-        for seed in range(100):
-            train_and_save(
-                args.target,
-                args.model,
-                seed,
-                args.gpu,
-                custom_n_tr=args.n_tr,
-                custom_n_val=args.n_val,
-                custom_n_test=args.n_test,
-                custom_num_epoch=args.num_epoch,
-                custom_batch_size=args.batch_size,
-                compute_counterfactual=args.compute_counterfactual,
-                logger=logger,
-            )
-
-    logger.info("Training process completed successfully")
 
 
 if __name__ == "__main__":
