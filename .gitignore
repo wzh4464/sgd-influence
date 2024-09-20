@@ -4,6 +4,7 @@
 *.pyc
 *.dat
 **/adult_*
+**/emnist_*
 *.npz
 .vscode/settings.json
 **/mnist_*

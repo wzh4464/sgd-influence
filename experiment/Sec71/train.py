@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Thursday, 19th September 2024 2:59:37 pm
+# Last Modified: Friday, 20th September 2024 9:28:48 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -25,7 +25,7 @@ from logging_utils import setup_logging
 import random
 
 # Assuming these imports are from local files
-from DataModule import MnistModule, NewsModule, AdultModule, CifarModule
+from DataModule import MnistModule, NewsModule, AdultModule, CifarModule, EMNISTModule
 from MyNet import LogReg, DNN, NetList, CifarCNN
 
 torch.backends.cudnn.deterministic = True
@@ -38,22 +38,31 @@ current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录
 def get_data_module(
     key: str, csv_path: str
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
-    if key == "20news":
-        module = NewsModule()
+    if key == "mnist":
+        module = MnistModule(data_dir=csv_path)
         data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"lr": 0.01, "decay": True, "num_epoch": 12, "batch_size": 20}
+        training_params = {
+            "num_epoch": 21,
+            "batch_size": 60,
+            "lr": 0.003,
+            "decay": True,
+        }
+    elif key == "20news":
+        module = NewsModule(data_dir=csv_path)
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
     elif key == "adult":
         module = AdultModule(csv_path=csv_path)
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"lr": 0.1, "decay": True, "num_epoch": 20, "batch_size": 5}
-    elif key == "mnist":
-        module = MnistModule()
-        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"lr": 0.01, "decay": True, "num_epoch": 5, "batch_size": 5}
+        data_sizes = {"n_tr": 200, "n_val": 1000, "200": 200}
+        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
     elif key == "cifar":
-        module = CifarModule()
+        module = CifarModule(data_dir=csv_path)
         data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
-        training_params = {"lr": 0.1, "decay": True, "num_epoch": 10, "batch_size": 64}
+        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.01, "decay": True}
+    elif key == "emnist":  # Add this new condition
+        module = EMNISTModule(data_dir=csv_path)
+        data_sizes = {"n_tr": 200, "n_val": 200, "n_test": 200}
+        training_params = {"num_epoch": 21, "batch_size": 60, "lr": 0.2, "decay": True}
     else:
         raise ValueError(f"Unsupported dataset: {key}")
 
@@ -77,7 +86,7 @@ def train_and_save(
     model_type: str,
     seed: int = 0,
     gpu: int = 0,
-    csv_path: str = "./data",
+    csv_path: str = None,
     custom_n_tr: int = None,
     custom_n_val: int = None,
     custom_n_test: int = None,
@@ -283,52 +292,38 @@ def train_and_save(
         "models": NetList(list_of_sgd_models),
         # models: NetList object containing (num_epoch * num_steps + 1) models
         # Each model's shape depends on the model_type (logreg, dnn, or cnn)
-
         "info": info,
         # info: List of dictionaries, length = (num_epoch * num_steps)
         # Each dict contains 'idx' (array of integers) and 'lr' (float)
-
         "counterfactual": list_of_counterfactual_models,
         # counterfactual: List of NetList objects if compute_counterfactual is True, else None
         # Length = n_tr if compute_counterfactual is True
         # Each NetList contains (num_epoch + 1) models
-
         "alpha": alpha,
         # alpha: float, regularization parameter
-
         "main_losses": main_losses,
         # main_losses: List of floats, length = (num_epoch + 1)
         # Contains validation losses at the end of each epoch
-
         "test_accuracies": test_accuracies,
         # test_accuracies: List of floats, length = (num_epoch + 1)
         # Contains test accuracies at the end of each epoch
-
         "train_losses": train_losses,
         # train_losses: numpy array of shape (num_epoch * num_steps + 1,)
         # Contains training losses for each batch
-
         "seed": seed,
         # seed: integer, random seed used
-
         "n_tr": data_sizes["n_tr"],
         # n_tr: integer, number of training samples
-
         "n_val": data_sizes["n_val"],
         # n_val: integer, number of validation samples
-
         "n_test": data_sizes["n_test"],
         # n_test: integer, number of test samples
-
         "num_epoch": training_params["num_epoch"],
         # num_epoch: integer, number of training epochs
-
         "batch_size": training_params["batch_size"],
         # batch_size: integer, size of each training batch
-
         "lr": training_params["lr"],
         # lr: float, initial learning rate
-
         "decay": training_params["decay"],
         # decay: boolean, whether learning rate decay is applied
     }
@@ -396,6 +391,7 @@ def _validate_arguments(logger, args):
         "20news",
         "adult",
         "cifar",
+        "emnist",
     ], "Invalid target data"
     assert args.model in ["logreg", "dnn", "cnn"], "Invalid model type"
 
