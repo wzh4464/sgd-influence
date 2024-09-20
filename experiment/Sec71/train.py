@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 7:23:14 pm
+# Last Modified: Friday, 20th September 2024 7:39:07 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -22,11 +22,10 @@ from typing import Tuple, Dict, Any
 import traceback
 import pandas as pd
 from logging_utils import setup_logging
-import random
+from NetworkModule import get_network, NETWORK_REGISTRY, NetList
 
 # Assuming these imports are from local files
 from DataModule import DATA_MODULE_REGISTRY
-from MyNet import LogReg, DNN, NetList, CifarCNN
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -37,8 +36,6 @@ current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录
 
 from DataModule import fetch_data_module
 from config import fetch_training_params
-
-AVAILABLE_MODELS = {"logreg", "dnn", "cnn"}
 
 
 def initialize_data_and_params(
@@ -69,14 +66,7 @@ def initialize_data_and_params(
 
 
 def get_model(model_type: str, input_dim: int, device: str) -> nn.Module:
-    if model_type == "logreg":
-        return LogReg(input_dim).to(device)
-    elif model_type == "dnn":
-        return DNN(input_dim).to(device)
-    elif model_type == "cnn":
-        return CifarCNN().to(device)
-    else:
-        raise ValueError(f"Unsupported model type: {model_type}")
+    return get_network(model_type, input_dim).to(device)
 
 
 def train_and_save(
@@ -360,9 +350,9 @@ def _validate_arguments(logger, args):
             f"Invalid target data: {args.target}. Available targets: {', '.join(DATA_MODULE_REGISTRY.keys())}"
         )
 
-    if args.model not in AVAILABLE_MODELS:
+    if args.model not in NETWORK_REGISTRY:
         raise ValueError(
-            f"Invalid model type: {args.model}. Available models: {', '.join(AVAILABLE_MODELS)}"
+            f"Invalid model type: {args.model}. Available models: {', '.join(NETWORK_REGISTRY.keys())}"
         )
 
     # Fetch default configuration for this dataset-model pair
