@@ -11,14 +11,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/train.py",
             "args": [
-                "--target", "adult",
-                "--model", "logreg",
+                "--target", "emnist",
+                "--model", "dnn",
                 "--seed", "0",
                 "--gpu", "0",
-                "--num_epoch", "12",
+                "--num_epoch", "21",
             ],
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "cwd": "${workspaceFolder}/experiment/Sec71"
         },
         {
