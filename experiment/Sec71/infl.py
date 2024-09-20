@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import torch
-from DataModule import MnistModule, NewsModule, AdultModule, EMNISTModule
+from DataModule import fetch_data_module
 from MyNet import LogReg, DNN, NetList
 import warnings
 from logging_utils import setup_logging
@@ -23,21 +23,8 @@ MOMENTUM = 0.9
 NUM_EPOCHS = 100
 
 
-def get_data_module(key):
-    if key == "mnist":
-        return MnistModule()
-    elif key == "20news":
-        return NewsModule()
-    elif key == "adult":
-        return AdultModule(csv_path=os.path.join(SCRIPT_DIR, "data"))
-    elif key == "emnist":
-        return EMNISTModule()
-    else:
-        raise ValueError(f"Unsupported dataset: {key}")
-
-
 def load_data(key, n_tr, n_val, n_test, seed, device):
-    module = get_data_module(key)
+    module = fetch_data_module(key)
     z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
 
@@ -357,9 +344,11 @@ def main():
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
     args = parser.parse_args()
 
-    if args.target not in ["mnist", "20news", "adult", "emnist"]:
+    from DataModule import DATA_MODULE_REGISTRY
+
+    if args.target not in DATA_MODULE_REGISTRY:
         raise ValueError(
-            "Invalid target data. Choose from 'mnist', '20news', or 'adult'."
+            f"Invalid target data. Choose from {', '.join(DATA_MODULE_REGISTRY.keys())}."
         )
     if args.model not in ["logreg", "dnn"]:
         raise ValueError("Invalid model type. Choose from 'logreg' or 'dnn'.")
