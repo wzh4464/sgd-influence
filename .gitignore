@@ -5,6 +5,7 @@
 *.dat
 **/adult_*
 **/emnist_*
+**/cifar_*
 *.npz
 .vscode/settings.json
 **/mnist_*
