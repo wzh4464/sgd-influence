@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 4:28:47 pm
+# Last Modified: Friday, 20th September 2024 7:28:42 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -238,11 +238,10 @@ def train_and_save(
 
                 # train_losses[c] = loss.item()
                 if (
-                    c % num_steps == 0
-                    or c == num_steps * training_params["num_epoch"]
-                ):
+                    c % num_steps == 0 or c == num_steps * training_params["num_epoch"]
+                ) and n < 0:
                     train_losses.append(loss.item())
-                    
+
                 epoch_loss += loss.item()
 
                 # Add regularization

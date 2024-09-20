@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 4:30:26 pm
+# Last Modified: Friday, 20th September 2024 7:28:25 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -114,10 +114,10 @@ DATASET_NETWORK_CONFIG = {
     ("cifar", "dnn"): {
         "num_epoch": 21,
         "batch_size": 64,
-        "lr": 0.5,
+        "lr": 0.18,
         "decay": True,
         "n_tr": 256,
-        "n_val": 256,
+        "n_val": 1256,
         "n_test": 200,
     },
     ("cifar", "cnn"): {
