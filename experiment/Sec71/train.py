@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 4:31:38 pm
+# Last Modified: Saturday, 21st September 2024 9:33:31 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -23,6 +23,7 @@ import traceback
 import pandas as pd
 from logging_utils import setup_logging
 from NetworkModule import get_network, NETWORK_REGISTRY, NetList
+import warnings
 
 # Assuming these imports are from local files
 from DataModule import DATA_MODULE_REGISTRY
@@ -89,16 +90,20 @@ def train_and_save(
         csv_path = os.path.join(current_dir, "data")
 
     if save_dir is None:
-        save_dir = f"{key}_{model_type}"  # Default to the current directory if not provided
-    else:
-        os.makedirs(save_dir, exist_ok=True)
+        save_dir = f"{key}_{model_type}"
+    os.makedirs(save_dir, exist_ok=True)
 
-    # 创建存储模型的目录，基于当前脚本路径
     dn = os.path.join(current_dir, save_dir)
     fn = os.path.join(dn, f"sgd{seed:03d}.dat")
     os.makedirs(dn, exist_ok=True)
 
-    device = f"cuda:{gpu}"
+    # Check if CUDA is available
+    if torch.cuda.is_available():
+        device = f"cuda:{gpu}"
+    else:
+        # CUDA is not available, fall back to CPU and throw a warning
+        warnings.warn("CUDA is not available, using CPU instead.", UserWarning)
+        device = "cpu"
 
     # Fetch data and settings
     module, data_sizes, training_params = initialize_data_and_params(
@@ -142,17 +147,15 @@ def train_and_save(
 
     # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
+    y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
+    y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
 
-    # Reshape for CNN if necessary
-    if model_type == "cnn":
-        x_tr = x_tr.view(-1, 3, 32, 32)
-        x_val = x_val.view(-1, 3, 32, 32)
+    # Get input dimension for the model
+    input_dim = x_tr.shape[1:]  # (channels, height, width) for all models
 
     # Training setup
-    net_func = lambda: get_model(model_type, x_tr.shape[1], device)
+    net_func = lambda: get_model(model_type, input_dim, device)
     num_steps = int(np.ceil(data_sizes["n_tr"] / training_params["batch_size"]))
     list_of_sgd_models = []
     list_of_counterfactual_models = (
@@ -171,12 +174,10 @@ def train_and_save(
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()
-        # Training setup
         optimizer = torch.optim.SGD(
             model.parameters(),
-            lr=0.01,
+            lr=training_params["lr"],
             momentum=0.0,
-            # weight_decay=1e-4,  # 学习率变小，加入L2正则化
         )
 
         lr_n = training_params["lr"]
@@ -198,7 +199,7 @@ def train_and_save(
                 m = net_func()
                 m.load_state_dict(copy.deepcopy(model.state_dict()))
                 if n < 0:
-                    m.to("cpu")  # Move model to CPU memory
+                    m.to("cpu")
                     list_of_sgd_models.append(m)
                     if (
                         c % num_steps == 0
@@ -211,7 +212,8 @@ def train_and_save(
                             test_acc = (test_pred == y_val).float().mean().item()
                             test_accuracies.append(test_acc)
                             logger.info(
-                                f"Epoch {epoch+1}/{training_params['num_epoch']}, Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
+                                f"Epoch {epoch+1}/{training_params['num_epoch']}, "
+                                f"Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
                             )
                 elif compute_counterfactual:
                     if (
@@ -228,7 +230,6 @@ def train_and_save(
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
 
-                # train_losses[c] = loss.item()
                 if (
                     c % num_steps == 0 or c == num_steps * training_params["num_epoch"]
                 ) and n < 0:
@@ -257,7 +258,8 @@ def train_and_save(
 
             # End of epoch logging
             logger.info(
-                f"Epoch {epoch+1}/{training_params['num_epoch']}, Average Training Loss: {epoch_loss/num_steps:.4f}"
+                f"Epoch {epoch+1}/{training_params['num_epoch']}, "
+                f"Average Training Loss: {epoch_loss/num_steps:.4f}"
             )
             torch.cuda.empty_cache()
 
@@ -265,7 +267,7 @@ def train_and_save(
         if n < 0:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to("cpu")  # Move model to CPU memory
+            m.to("cpu")
             list_of_sgd_models.append(m)
             with torch.no_grad():
                 val_loss = loss_fn(model(x_val), y_val).item()
@@ -280,7 +282,7 @@ def train_and_save(
         elif compute_counterfactual:
             m = net_func()
             m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to("cpu")  # Move model to CPU memory
+            m.to("cpu")
             list_of_counterfactual_models[n].models.append(m)
 
         # Clean up after each iteration
@@ -330,6 +332,21 @@ def train_and_save(
 
     # Save data
     torch.save(data_to_save, fn)
+    
+    # info.insert(0, {"idx": np.arange(data_sizes["n_tr"]), "lr": training_params["lr"]})
+    
+    # save step and info
+    step_fn_csv = os.path.join(dn, f"step_{seed:03d}.csv")
+    
+    logger.info(f"len('step') = {len(range(len(info)))}, len('lr') = {len([d['lr'] for d in info])}, len('idx') = {len([d['idx'] for d in info])}")
+    
+    pd.DataFrame(
+        {
+            "step": range(len(info)),
+            "lr": [d["lr"] for d in info],
+            "idx": [d["idx"] for d in info],
+        }
+    ).to_csv(step_fn_csv, index=False)
 
     # Save main_losses and test_accuracies to CSV
     csv_fn = os.path.join(dn, f"metrics_{seed:03d}.csv")

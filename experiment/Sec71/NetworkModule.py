@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 7:35:37 pm
+# Last Modified: Saturday, 21st September 2024 9:24:55 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -13,6 +13,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 NETWORK_REGISTRY = {}
 
@@ -29,6 +30,15 @@ def get_network(key, input_dim):
     if key not in NETWORK_REGISTRY:
         raise ValueError(f"Network {key} not found in registry.")
     return NETWORK_REGISTRY[key](input_dim)
+
+
+class BaseModel(nn.Module):
+    def preprocess_input(self, x):
+        raise NotImplementedError
+
+    def forward(self, x):
+        x = self.preprocess_input(x)
+        return self.model(x)
 
 
 class NetList(nn.Module):
@@ -56,29 +66,36 @@ class NetList(nn.Module):
 
 
 @register_network("logreg")
-class LogReg(nn.Module):
+class LogReg(BaseModel):
     def __init__(self, input_dim):
         super(LogReg, self).__init__()
-        self.fc = nn.Linear(input_dim, 1)
+        self.model = nn.Linear(input_dim, 1)
 
-    def forward(self, x):
-        return self.fc(x)
+    def preprocess_input(self, x):
+        return x.view(x.size(0), -1)
 
 
 @register_network("dnn")
-class DNN(nn.Module):
+class DNN(BaseModel):
     def __init__(self, input_dim, m=None):
+        super(DNN, self).__init__()
         if m is None:
             m = [8, 8]
-        super(DNN, self).__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, m[0]),
+
+        # Calculate the total number of input features
+        if isinstance(input_dim, (tuple, list, torch.Size)):
+            total_input_dim = np.prod(input_dim)
+        else:
+            total_input_dim = input_dim
+
+        self.model = nn.Sequential(
+            nn.Linear(total_input_dim, m[0]),
             nn.ReLU(),
             nn.Linear(m[0], 1),
         )
 
-    def forward(self, x):
-        return self.layers(x)
+    def preprocess_input(self, x):
+        return x.view(x.size(0), -1)
 
     def param_diff(self, other):
         if not isinstance(other, DNN):
@@ -111,28 +128,29 @@ class DNN(nn.Module):
 
 
 @register_network("cnn")
-class CifarCNN(nn.Module):
-    def __init__(
-        self, input_dim=None
-    ):  # input_dim is not used but kept for consistency
-        super(CifarCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(128 * 4 * 4, 512)
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(512, 1)
+class CNN(BaseModel):
+    def __init__(self, input_dim):
+        super(CNN, self).__init__()
+        # input_dim is now expected to be a tuple (channels, height, width)
+        in_channels, height, width = input_dim
 
-    def forward(self, x):
-        x = self.pool(self.bn1(torch.relu(self.conv1(x))))
-        x = self.pool(self.bn2(torch.relu(self.conv2(x))))
-        x = self.pool(self.bn3(torch.relu(self.conv3(x))))
-        x = x.view(-1, 128 * 4 * 4)
-        x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return torch.sigmoid(x)
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Flatten(),
+            nn.Linear(64 * (height // 8) * (width // 8), 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+            nn.Sigmoid(),
+        )
+
+    def preprocess_input(self, x):
+        # x is already in the correct shape (batch_size, channels, height, width)
+        return x

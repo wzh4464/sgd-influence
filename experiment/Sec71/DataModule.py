@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 10:25:14 am
+# Last Modified: Saturday, 21st September 2024 9:24:59 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -110,7 +110,7 @@ def native(country):
 
 
 class DataModule:
-    def __init__(self, normalize=True, append_one=True, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None):
         self.normalize = normalize
         self.append_one = append_one
         if data_dir is None:
@@ -121,7 +121,6 @@ class DataModule:
             self.data_dir = data_dir
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # Use the logger configured in the main script
         self.logger = setup_logging(
             "DataModule", 0, output_dir="logs", level=logging.INFO
         )
@@ -131,6 +130,22 @@ class DataModule:
 
     def load(self):
         raise NotImplementedError
+
+    def preprocess(self, x, y):
+        if self.normalize:
+            self.logger.info("Normalizing data")
+            if x.ndim > 2:  # For image data, normalize per channel
+                for i in range(x.shape[-1]):
+                    x[..., i] = (x[..., i] - x[..., i].mean()) / x[..., i].std()
+            else:
+                scaler = StandardScaler()
+                x = scaler.fit_transform(x)
+
+        if self.append_one and x.ndim == 2:
+            self.logger.info("Appending ones to data")
+            x = np.c_[x, np.ones(x.shape[0])]
+
+        return x, y
 
     def fetch(self, n_tr, n_val, n_test, seed=0):
         cache_file = os.path.join(
@@ -145,77 +160,38 @@ class DataModule:
 
         with FileLock(lock_file):
             if os.path.exists(cache_file):
-                self.logger.info(
-                    f"Cache file found. Attempting to load from {cache_file}"
-                )
-                try:
-                    with open(cache_file, "rb") as f:
-                        result = pickle.load(f)
-                    self.logger.info("Successfully loaded data from cache")
-                    return result
-                except (EOFError, pickle.UnpicklingError) as e:
-                    self.logger.error(f"Error loading cache file: {str(e)}")
-                    self.logger.info(
-                        "Removing corrupted cache file and regenerating data"
-                    )
-                    os.remove(cache_file)
-                except Exception as e:
-                    self.logger.error(f"Unexpected error loading cache file: {str(e)}")
-                    raise
+                self.logger.info(f"Loading data from cache file {cache_file}")
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
 
+            self.logger.info("Cache not found. Loading and processing data.")
+            x, y = self.load()
             self.logger.info(
-                "Cache not found or corrupted. Loading and processing data."
+                f"Data loaded. Shape of x: {x.shape}, Shape of y: {y.shape}"
             )
-            try:
-                x, y = self.load()
-                self.logger.info(
-                    f"Data loaded. Shape of x: {x.shape}, Shape of y: {y.shape}"
-                )
 
-                # split data
-                x_tr, x_val, y_tr, y_val = train_test_split(
-                    x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
-                )
-                x_val, x_test, y_val, y_test = train_test_split(
-                    x_val,
-                    y_val,
-                    train_size=n_val,
-                    test_size=n_test,
-                    random_state=seed + 1,
-                )
-                self.logger.info(
-                    f"Data split completed. Shapes: x_tr: {x_tr.shape}, x_val: {x_val.shape}, x_test: {x_test.shape}"
-                )
+            x_tr, x_temp, y_tr, y_temp = train_test_split(
+                x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
+            )
+            x_val, x_test, y_val, y_test = train_test_split(
+                x_temp,
+                y_temp,
+                train_size=n_val,
+                test_size=n_test,
+                random_state=seed + 1,
+            )
 
-                # process x
-                if self.normalize:
-                    self.logger.info("Normalizing data")
-                    scaler = StandardScaler()
-                    scaler.fit(x_tr)
-                    x_tr = scaler.transform(x_tr)
-                    x_val = scaler.transform(x_val)
-                    x_test = scaler.transform(x_test)
+            x_tr, y_tr = self.preprocess(x_tr, y_tr)
+            x_val, y_val = self.preprocess(x_val, y_val)
+            x_test, y_test = self.preprocess(x_test, y_test)
 
-                if self.append_one:
-                    self.logger.info("Appending ones to data")
-                    x_tr = np.c_[x_tr, np.ones(n_tr)]
-                    x_val = np.c_[x_val, np.ones(n_val)]
-                    x_test = np.c_[x_test, np.ones(n_test)]
+            result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
 
-                result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
+            with open(cache_file, "wb") as f:
+                pickle.dump(result, f)
 
-                self.logger.info(f"Saving processed data to cache file: {cache_file}")
-                with open(cache_file, "wb") as f:
-                    pickle.dump(result, f)
-                self.logger.info("Data successfully saved to cache")
-
-                return result
-
-            except Exception as e:
-                self.logger.error(f"Error in data processing: {str(e)}")
-                if os.path.exists(cache_file):
-                    os.remove(cache_file)
-                raise
+            self.logger.info("Data processed and saved to cache.")
+            return result
 
 
 class MnistModule(DataModule):
@@ -235,7 +211,8 @@ class MnistModule(DataModule):
             # Use TensorFlow to load MNIST data
             (x_train, y_train), (_, _) = self.mnist.load_data()
 
-            x_train = x_train.reshape(-1, 28 * 28) / 255.0
+            # Reshape to (samples, channels, height, width)
+            x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
 
             xtr1 = x_train[y_train == 1]
             xtr7 = x_train[y_train == 7]
@@ -249,6 +226,16 @@ class MnistModule(DataModule):
                 pickle.dump(result, f)
 
             return result
+
+    def preprocess(self, x, y):
+        if self.normalize:
+            self.logger.info("Normalizing data")
+            # Normalize each channel
+            x = (x - x.mean(axis=(2, 3), keepdims=True)) / x.std(
+                axis=(2, 3), keepdims=True
+            )
+
+        return x, y
 
 
 class NewsModule(DataModule):
@@ -352,66 +339,27 @@ class CifarModule(DataModule):
         self.cifar_version = cifar_version
 
     def load(self):
-        cache_file = os.path.join(self.data_dir, f"cifar{self.cifar_version}_data.pkl")
-        lock_file = cache_file + ".lock"
-
-        with FileLock(lock_file):
-            if os.path.exists(cache_file):
-                with open(cache_file, "rb") as f:
-                    return pickle.load(f)
-
-            if self.cifar_version == 10:
-                (x_train, y_train), (x_test, y_test) = (
-                    tf.keras.datasets.cifar10.load_data()
-                )
-            else:  # CIFAR-100
-                (x_train, y_train), (x_test, y_test) = (
-                    tf.keras.datasets.cifar100.load_data()
-                )
-
-            # Combine train and test data
-            x = np.vstack((x_train, x_test))
-            y = np.vstack((y_train, y_test)).squeeze()
-
-            # Flatten the images
-            x = x.reshape(x.shape[0], -1)
-
-            # Normalize pixel values to be between 0 and 1
-            x = x.astype("float32") / 255.0
-
-            # For binary classification, we'll use the first two classes
-            mask = (y == 0) | (y == 1)
-            x = x[mask]
-            y = y[mask]
-
-            # Make labels 0 and 1
-            y = (y == 1).astype(int)
-
-            # Balanced data sampling: ensure 50/50 class distribution
-            class_0_indices = np.where(y == 0)[0]
-            class_1_indices = np.where(y == 1)[0]
-            min_class_samples = min(len(class_0_indices), len(class_1_indices))
-
-            # Take equal number of samples from both classes
-            balanced_indices = np.concatenate(
-                [
-                    np.random.choice(class_0_indices, min_class_samples, replace=False),
-                    np.random.choice(class_1_indices, min_class_samples, replace=False),
-                ]
+        if self.cifar_version == 10:
+            (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+        else:
+            (x_train, y_train), (x_test, y_test) = (
+                tf.keras.datasets.cifar100.load_data()
             )
 
-            x = x[balanced_indices]
-            y = y[balanced_indices]
+        x = np.vstack((x_train, x_test))
+        y = np.vstack((y_train, y_test)).squeeze()
 
-            result = (x, y)
+        x = x.astype("float32") / 255.0
 
-            with open(cache_file, "wb") as f:
-                pickle.dump(result, f)
+        mask = (y == 0) | (y == 1)
+        x = x[mask]
+        y = y[mask]
+        y = (y == 1).astype(int)
 
-            return result
+        return x, y
 
 
-class EMNISTModule:
+class EMNISTModule(DataModule):
     def __init__(self, normalize=True, append_one=False, data_dir=None):
         """
         Initialize the EMNISTModule.
@@ -420,20 +368,10 @@ class EMNISTModule:
             append_one (bool): Whether to append a column of ones to the data.
             data_dir (str): Directory where the data will be stored.
         """
-        self.normalize = normalize
-        self.append_one = append_one
         if data_dir is None:
-            self.data_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "data"
-            )
-        else:
-            self.data_dir = "/home/zihan/.cache/emnist/"
-        os.makedirs(self.data_dir, exist_ok=True)
+            data_dir = os.path.expanduser("/home/zihan/.cache/emnist/")
+        super().__init__(normalize, append_one, data_dir)
 
-        # Use the logger configured in the main script
-        self.logger = setup_logging(
-            "EMNISTModule", 0, output_dir="logs", level=logging.INFO
-        )
         self.logger.info(
             f"EMNISTModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
         )
@@ -459,8 +397,8 @@ class EMNISTModule:
             # Load 'letters' dataset for binary classification between 'A' and 'B'
             x_train, y_train = extract_training_samples("letters")
 
-            # Reshape and normalize the images
-            x_train = x_train.reshape(-1, 28 * 28).astype("float32") / 255.0
+            # Reshape the images to (channels, height, width) format
+            x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
 
             # Select classes 'A' (label 1) and 'B' (label 2)
             mask = (y_train == 1) | (y_train == 2)
@@ -470,10 +408,6 @@ class EMNISTModule:
                 int
             )  # Binary classification: 'A' = 0, 'B' = 1
 
-            # Append a column of ones if needed
-            if self.append_one:
-                x_train = np.c_[x_train, np.ones(x_train.shape[0])]
-
             # Save to cache
             result = (x_train, y_train)
             with open(cache_file, "wb") as f:
@@ -482,60 +416,18 @@ class EMNISTModule:
             self.logger.info("Data saved to cache.")
             return result
 
-    def fetch(self, n_tr, n_val, n_test, seed=0):
+    def preprocess(self, x, y):
         """
-        Fetches and splits the data into training, validation, and test sets.
-
-        Args:
-            n_tr (int): Number of training samples.
-            n_val (int): Number of validation samples.
-            n_test (int): Number of test samples.
-            seed (int): Random seed for reproducibility.
-
-        Returns:
-            Tuple: Split dataset (training, validation, test).
+        Preprocess the data.
         """
-        cache_file = os.path.join(
-            self.data_dir,
-            f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
-        )
-        lock_file = cache_file + ".lock"
-        self.logger.info(
-            f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
-        )
-        self.logger.info(f"Cache file: {cache_file}")
+        if self.normalize:
+            self.logger.info("Normalizing data")
+            # For image data, we typically normalize per channel
+            for i in range(x.shape[1]):  # Iterate over channels
+                x[:, i] = (x[:, i] - x[:, i].mean()) / x[:, i].std()
 
-        with FileLock(lock_file):
-            if os.path.exists(cache_file):
-                self.logger.info(f"Loading split data from cache file {cache_file}.")
-                with open(cache_file, "rb") as f:
-                    return pickle.load(f)
-
-            self.logger.info("Cache not found. Loading and splitting data.")
-            x, y = self.load()
-
-            # Split data
-            from sklearn.model_selection import train_test_split
-
-            x_tr, x_temp, y_tr, y_temp = train_test_split(
-                x, y, train_size=n_tr, test_size=n_val + n_test, random_state=seed
-            )
-            x_val, x_test, y_val, y_test = train_test_split(
-                x_temp,
-                y_temp,
-                train_size=n_val,
-                test_size=n_test,
-                random_state=seed + 1,
-            )
-
-            result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
-
-            # Save the result to cache
-            with open(cache_file, "wb") as f:
-                pickle.dump(result, f)
-
-            self.logger.info("Data split and saved to cache.")
-            return result
+        # We don't append ones for image data, even if append_one is True
+        return x, y
 
 
 # Registry dictionary to map dataset keys to their corresponding modules
@@ -562,4 +454,3 @@ def fetch_data_module(key: str, **kwargs):
     if key not in DATA_MODULE_REGISTRY:
         raise ValueError(f"Dataset key {key} is not registered.")
     return DATA_MODULE_REGISTRY[key](**kwargs)
-
