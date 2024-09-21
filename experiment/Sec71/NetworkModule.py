@@ -1,29 +1,40 @@
 ###
-# File: /MyNet.py
-# Created Date: September 9th 2024
+# File: /NetworkModule.py
+# Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 9:20:48 am
+# Last Modified: Friday, 20th September 2024 7:35:37 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
 # Date      		By   	Comments
 # ----------		------	---------------------------------------------------------
 ###
-
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
+NETWORK_REGISTRY = {}
 
 
-class NetList(torch.nn.Module):
+def register_network(key):
+    def decorator(cls):
+        NETWORK_REGISTRY[key] = cls
+        return cls
+
+    return decorator
+
+
+def get_network(key, input_dim):
+    if key not in NETWORK_REGISTRY:
+        raise ValueError(f"Network {key} not found in registry.")
+    return NETWORK_REGISTRY[key](input_dim)
+
+
+class NetList(nn.Module):
     def __init__(self, list_of_models):
         super(NetList, self).__init__()
-        self.models = torch.nn.ModuleList(list_of_models)
+        self.models = nn.ModuleList(list_of_models)
 
     def forward(self, x, idx=0):
         return self.models[idx](x)
@@ -44,53 +55,32 @@ class NetList(torch.nn.Module):
         return model
 
 
+@register_network("logreg")
 class LogReg(nn.Module):
     def __init__(self, input_dim):
         super(LogReg, self).__init__()
         self.fc = nn.Linear(input_dim, 1)
 
     def forward(self, x):
-        x = self.fc(x)
-        return x
-        # x = torch.sigmoid(x)
-        # x = torch.cat((x, 1 - x), dim=1)
-        # return torch.log(x)
+        return self.fc(x)
 
 
+@register_network("dnn")
 class DNN(nn.Module):
     def __init__(self, input_dim, m=None):
         if m is None:
             m = [8, 8]
         super(DNN, self).__init__()
-        # self.layers = nn.Sequential(
-        #     nn.Linear(input_dim, m[0]),
-        #     nn.ReLU(),
-        #     nn.Linear(m[0], m[1]),
-        #     nn.ReLU(),
-        #     nn.Linear(m[1], 1),
-        # )
         self.layers = nn.Sequential(
             nn.Linear(input_dim, m[0]),
             nn.ReLU(),
-            # nn.Linear(m[0], m[1]),
-            # nn.ReLU(),
             nn.Linear(m[0], 1),
         )
 
     def forward(self, x):
-        x = self.layers(x)
-        return x
-        # x = torch.sigmoid(x)
-        # x = torch.cat((x, 1 - x), dim=1)
-        # return torch.log(x)
+        return self.layers(x)
 
     def param_diff(self, other):
-        """
-        Calculate the difference between this model's parameters and another model's parameters.
-
-        :param other: Another DNN model to compare with
-        :return: A dictionary containing the differences of each parameter
-        """
         if not isinstance(other, DNN):
             raise ValueError("Can only compare with another DNN instance")
 
@@ -104,13 +94,6 @@ class DNN(nn.Module):
         return diff
 
     def param_diff_norm(self, other, norm_type=2):
-        """
-        Calculate the norm of the difference between this model's parameters and another model's parameters.
-
-        :param other: Another DNN model to compare with
-        :param norm_type: Type of norm to use (default is L2 norm)
-        :return: The norm of the parameter differences
-        """
         diff = self.param_diff(other)
         total_norm = sum(
             torch.norm(diff_tensor, p=norm_type).item() ** norm_type
@@ -120,12 +103,6 @@ class DNN(nn.Module):
 
     @staticmethod
     def print_param_diff(diff, threshold=1e-6):
-        """
-        Print the parameter differences, showing only differences above a certain threshold.
-
-        :param diff: Dictionary of parameter differences
-        :param threshold: Minimum absolute difference to display
-        """
         for name, diff_tensor in diff.items():
             if torch.any(torch.abs(diff_tensor) > threshold):
                 print(f"Difference in {name}:")
@@ -133,8 +110,11 @@ class DNN(nn.Module):
                 print()
 
 
+@register_network("cnn")
 class CifarCNN(nn.Module):
-    def __init__(self):
+    def __init__(
+        self, input_dim=None
+    ):  # input_dim is not used but kept for consistency
         super(CifarCNN, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
