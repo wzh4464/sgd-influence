@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 11:43:32 am
+# Last Modified: Saturday, 21st September 2024 10:25:14 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -427,7 +427,7 @@ class EMNISTModule:
                 os.path.dirname(os.path.abspath(__file__)), "data"
             )
         else:
-            self.data_dir = "~/.cache/emnist/"
+            self.data_dir = "/home/zihan/.cache/emnist/"
         os.makedirs(self.data_dir, exist_ok=True)
 
         # Use the logger configured in the main script
