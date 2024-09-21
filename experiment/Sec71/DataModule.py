@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 9:24:59 pm
+# Last Modified: Saturday, 21st September 2024 10:04:13 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -110,7 +110,7 @@ def native(country):
 
 
 class DataModule:
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None):
         self.normalize = normalize
         self.append_one = append_one
         if data_dir is None:
@@ -121,9 +121,7 @@ class DataModule:
             self.data_dir = data_dir
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self.logger = setup_logging(
-            "DataModule", 0, output_dir="logs", level=logging.INFO
-        )
+        self.logger = logger or logging.getLogger(__name__)
         self.logger.info(
             f"DataModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
         )

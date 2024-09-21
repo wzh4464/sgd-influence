@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 9:33:31 pm
+# Last Modified: Saturday, 21st September 2024 10:08:35 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -66,8 +66,8 @@ def initialize_data_and_params(
     return module, data_sizes, training_params
 
 
-def get_model(model_type: str, input_dim: int, device: str) -> nn.Module:
-    return get_network(model_type, input_dim).to(device)
+def get_model(model_type: str, input_dim: int, device: str, logger=None):
+    return get_network(model_type, input_dim, logger).to(device)
 
 
 def train_and_save(
@@ -155,7 +155,7 @@ def train_and_save(
     input_dim = x_tr.shape[1:]  # (channels, height, width) for all models
 
     # Training setup
-    net_func = lambda: get_model(model_type, input_dim, device)
+    net_func = lambda: get_model(model_type, input_dim, device, logger)
     num_steps = int(np.ceil(data_sizes["n_tr"] / training_params["batch_size"]))
     list_of_sgd_models = []
     list_of_counterfactual_models = (
@@ -332,14 +332,16 @@ def train_and_save(
 
     # Save data
     torch.save(data_to_save, fn)
-    
+
     # info.insert(0, {"idx": np.arange(data_sizes["n_tr"]), "lr": training_params["lr"]})
-    
+
     # save step and info
     step_fn_csv = os.path.join(dn, f"step_{seed:03d}.csv")
-    
-    logger.info(f"len('step') = {len(range(len(info)))}, len('lr') = {len([d['lr'] for d in info])}, len('idx') = {len([d['idx'] for d in info])}")
-    
+
+    logger.info(
+        f"len('step') = {len(range(len(info)))}, len('lr') = {len([d['lr'] for d in info])}, len('idx') = {len([d['idx'] for d in info])}"
+    )
+
     pd.DataFrame(
         {
             "step": range(len(info)),
@@ -435,10 +437,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.save_dir:
-        logger = setup_logging(f"{args.target}_{args.model}", args.seed, args.save_dir)
-    else:
-        logger = setup_logging(f"{args.target}_{args.model}", args.seed)
+    # 设置保存目录
+    if args.save_dir is None:
+        args.save_dir = f"{args.target}_{args.model}"
+
+    # 创建一个 logger 实例
+    logger = setup_logging(f"{args.target}_{args.model}", args.seed, args.save_dir)
 
     try:
         _validate_arguments(logger, args)
