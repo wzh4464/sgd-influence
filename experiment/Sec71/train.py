@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 7:39:07 pm
+# Last Modified: Saturday, 21st September 2024 4:31:38 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -83,12 +83,18 @@ def train_and_save(
     custom_lr: float = None,
     compute_counterfactual: bool = True,
     logger=None,
+    save_dir: str = None,
 ) -> Dict[str, Any]:
     if csv_path is None:
         csv_path = os.path.join(current_dir, "data")
 
+    if save_dir is None:
+        save_dir = f"{key}_{model_type}"  # Default to the current directory if not provided
+    else:
+        os.makedirs(save_dir, exist_ok=True)
+
     # 创建存储模型的目录，基于当前脚本路径
-    dn = os.path.join(current_dir, f"{key}_{model_type}")
+    dn = os.path.join(current_dir, save_dir)
     fn = os.path.join(dn, f"sgd{seed:03d}.dat")
     os.makedirs(dn, exist_ok=True)
 
@@ -382,6 +388,7 @@ def _run_training(args, default_config, logger):
         custom_lr=args.lr or default_config.get("lr"),
         compute_counterfactual=args.compute_counterfactual,
         logger=logger,
+        save_dir=args.save_dir,
     )
 
 
@@ -398,6 +405,9 @@ def main():
     parser.add_argument("--batch_size", type=int, help="batch size")
     parser.add_argument("--lr", type=float, help="initial learning rate")
     parser.add_argument(
+        "--save_dir", type=str, help="directory to save models and results"
+    )
+    parser.add_argument(
         "--no-loo",
         action="store_false",
         dest="compute_counterfactual",
@@ -408,7 +418,10 @@ def main():
 
     args = parser.parse_args()
 
-    logger = setup_logging(f"{args.target}_{args.model}", args.seed)
+    if args.save_dir:
+        logger = setup_logging(f"{args.target}_{args.model}", args.seed, args.save_dir)
+    else:
+        logger = setup_logging(f"{args.target}_{args.model}", args.seed)
 
     try:
         _validate_arguments(logger, args)

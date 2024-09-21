@@ -47,8 +47,12 @@ def compute_gradient(x, y, model, loss_fn):
     return u
 
 
-def get_file_paths(key, model_type, seed, infl_type=None):
-    dn = os.path.join(SCRIPT_DIR, f"{key}_{model_type}")
+def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None):
+    dn = (
+        os.path.join(SCRIPT_DIR, save_dir)
+        if save_dir
+        else os.path.join(SCRIPT_DIR, f"{key}_{model_type}")
+    )
     fn = os.path.join(dn, f"sgd{seed:03d}.dat")
     if infl_type:
         gn = os.path.join(dn, f"infl_{infl_type}{seed:03d}.dat")
@@ -56,8 +60,9 @@ def get_file_paths(key, model_type, seed, infl_type=None):
     return dn, fn
 
 
-def infl_true(key, model_type, seed=0, gpu=0):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "true")
+def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir)
+    os.makedirs(dn, exist_ok=True)  # Ensure the directory exists
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
@@ -69,7 +74,7 @@ def infl_true(key, model_type, seed=0, gpu=0):
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
-    # influence
+    # Influence computation
     z = model(x_val)
     loss = loss_fn(z, y_val)
     infl = np.zeros(res["n_tr"])
@@ -82,8 +87,8 @@ def infl_true(key, model_type, seed=0, gpu=0):
 
     torch.save(infl, gn)
 
-def infl_segment_true(key, model_type, seed=0, gpu=0):
-    dn, fn = get_file_paths(key, model_type, seed)
+def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
 
@@ -152,8 +157,8 @@ def infl_segment_true(key, model_type, seed=0, gpu=0):
     print(f"Results saved to {csv_fn}")
 
 
-def infl_sgd(key, model_type, seed=0, gpu=0):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd")
+def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None):
+    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd", save_dir)
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
@@ -202,8 +207,8 @@ def infl_sgd(key, model_type, seed=0, gpu=0):
     torch.save(infl, gn)
 
 
-def infl_nohess(key, model_type, seed=0, gpu=0):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess")
+def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None):
+    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess", save_dir)
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
@@ -240,8 +245,8 @@ def infl_nohess(key, model_type, seed=0, gpu=0):
     torch.save(infl, gn)
 
 
-def infl_icml(key, model_type, seed=0, gpu=0):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "icml")
+def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
+    dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir)
     hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
     device = f"cuda:{gpu}"
 
@@ -306,8 +311,7 @@ def infl_icml(key, model_type, seed=0, gpu=0):
     torch.save(infl, gn)
 
 
-def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None):
-    _, fn = get_file_paths(key, model_type, seed)
+def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, fn=None):
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
@@ -368,8 +372,8 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None):
     return infl
 
 
-def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True):
-    dn, fn = get_file_paths(key, model_type, seed)
+def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None):
+    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
 
@@ -382,7 +386,7 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True):
 
     for epoch in range(num_epochs + 1):
         logger.info(f"Computing influence for epoch {epoch}")
-        infl = infl_lie_helper(key, model_type, epoch, seed, gpu, logger)
+        infl = infl_lie_helper(key, model_type, epoch, seed, gpu, logger, fn)
         infl_list.append(infl)
         logger.info(f"Completed influence computation for epoch {epoch}")
 
@@ -411,6 +415,10 @@ def main():
     parser.add_argument("--type", default="true", type=str, help="influence type")
     parser.add_argument("--seed", default=0, type=int, help="random seed")
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
+    parser.add_argument(
+        "--save_dir", type=str, help="directory to save results"
+    )  # New argument
+
     args = parser.parse_args()
 
     if args.target not in DATA_MODULE_REGISTRY:
@@ -438,10 +446,10 @@ def main():
     infl_func = influence_functions[args.type]
 
     if args.seed >= 0:
-        infl_func(args.target, args.model, args.seed, args.gpu)
+        infl_func(args.target, args.model, args.seed, args.gpu, save_dir=args.save_dir)
     else:
         for seed in range(100):
-            infl_func(args.target, args.model, seed, args.gpu)
+            infl_func(args.target, args.model, seed, args.gpu, save_dir=args.save_dir)
 
 
 if __name__ == "__main__":
