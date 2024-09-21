@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 10:15:04 pm
+# Last Modified: Saturday, 21st September 2024 11:41:53 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -30,7 +30,7 @@ def register_network(key):
 def get_network(key, input_dim, logger=None):
     if logger is None:
         logger = logging.getLogger(__name__)
-    
+
     if key not in NETWORK_REGISTRY:
         logger.error(f"Network {key} not found in registry.")
         raise ValueError(f"Network {key} not found in registry.")
@@ -94,7 +94,7 @@ class LogReg(BaseModel):
 
 @register_network("dnn")
 class DNN(BaseModel):
-    def __init__(self, input_dim, m=None, logger=None):
+    def __init__(self, input_dim, logger=None, m=None):
         super(DNN, self).__init__(logger)
         if m is None:
             m = [8, 8]
