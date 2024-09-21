@@ -82,6 +82,75 @@ def infl_true(key, model_type, seed=0, gpu=0):
 
     torch.save(infl, gn)
 
+def infl_segment_true(key, model_type, seed=0, gpu=0):
+    dn, fn = get_file_paths(key, model_type, seed)
+    os.makedirs(dn, exist_ok=True)
+    csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
+
+    logger = setup_logging(f"infl_segment_true_{key}_{model_type}", seed)
+    logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
+
+    device = f"cuda:{gpu}"
+    res = torch.load(fn, map_location=device)
+    x_tr, y_tr, x_val, y_val = load_data(
+        key, res["n_tr"], res["n_val"], res["n_test"], seed, device
+    )
+
+    model = res["models"].models[-1].to(device)
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+    model.eval()
+
+    num_epochs = res["num_epoch"]
+    infl_list = []
+
+    # Compute influence for each epoch
+    for epoch in range(num_epochs + 1):
+        logger.info(f"Computing influence for epoch {epoch}")
+        
+        # Calculate the number of steps for this epoch
+        steps_per_epoch = int(np.ceil(res["n_tr"] / res["batch_size"]))
+        total_steps = epoch * steps_per_epoch
+
+        # Use the model state at the end of this epoch
+        if epoch < num_epochs:
+            model = res["models"].models[total_steps].to(device)
+        else:
+            model = res["models"].models[-1].to(device)
+        
+        model.eval()
+
+        # Compute influence
+        z = model(x_val)
+        loss = loss_fn(z, y_val)
+        infl = np.zeros(res["n_tr"])
+        
+        for i in range(res["n_tr"]):
+            m = res["counterfactual"][i].models[epoch].to(device)
+            m.eval()
+            zi = m(x_val)
+            lossi = loss_fn(zi, y_val)
+            infl[i] = lossi.item() - loss.item()
+        
+        infl_list.append(infl)
+        logger.info(f"Completed influence computation for epoch {epoch}")
+
+    # Compute differences between consecutive epochs
+    diff_dict = {
+        f"diff_{i-1}_{i}": infl_list[i] - infl_list[i - 1]
+        for i in range(1, len(infl_list))
+    }
+
+    # Save to CSV
+    pd.DataFrame(diff_dict).to_csv(csv_fn, index=False)
+    logger.info(f"CSV results saved to {csv_fn}")
+
+    # Save full results
+    torch.save(infl_list, os.path.join(dn, f"infl_segment_true_full_{seed:03d}.dat"))
+    logger.info(f"Full results saved to {os.path.join(dn, f'infl_segment_true_full_{seed:03d}.dat')}")
+
+    logger.info("infl_segment_true computation completed")
+    print(f"Results saved to {csv_fn}")
+
 
 def infl_sgd(key, model_type, seed=0, gpu=0):
     dn, fn, gn = get_file_paths(key, model_type, seed, "sgd")
@@ -352,13 +421,14 @@ def main():
         raise ValueError(
             f"Invalid model type. Choose from {', '.join(NETWORK_REGISTRY.keys())}."
         )
-    if args.type not in ["true", "sgd", "nohess", "icml", "lie"]:
+    if args.type not in ["true", "segment_true", "sgd", "nohess", "icml", "lie"]:
         raise ValueError(
-            "Invalid influence type. Choose from 'true', 'sgd', 'nohess', 'icml', or 'lie'."
+            "Invalid influence type. Choose from 'true', 'segment_true', 'sgd', 'nohess', 'icml', 'lie'."
         )
 
     influence_functions = {
         "true": infl_true,
+        "segment_true": infl_segment_true,
         "sgd": infl_sgd,
         "nohess": infl_nohess,
         "icml": infl_icml,
