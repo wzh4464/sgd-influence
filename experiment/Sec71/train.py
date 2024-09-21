@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 10:08:35 pm
+# Last Modified: Sunday, 22nd September 2024 12:11:07 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -91,7 +91,6 @@ def train_and_save(
 
     if save_dir is None:
         save_dir = f"{key}_{model_type}"
-    os.makedirs(save_dir, exist_ok=True)
 
     dn = os.path.join(current_dir, save_dir)
     fn = os.path.join(dn, f"sgd{seed:03d}.dat")
@@ -442,7 +441,11 @@ def main():
         args.save_dir = f"{args.target}_{args.model}"
 
     # 创建一个 logger 实例
-    logger = setup_logging(f"{args.target}_{args.model}", args.seed, args.save_dir)
+    logger = setup_logging(
+        f"{args.target}_{args.model}",
+        args.seed,
+        os.path.join(current_dir, args.save_dir),
+    )
 
     try:
         _validate_arguments(logger, args)
