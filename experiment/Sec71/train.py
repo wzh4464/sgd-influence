@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 12:11:07 am
+# Last Modified: Sunday, 22nd September 2024 11:44:02 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -22,6 +22,7 @@ from typing import Tuple, Dict, Any
 import traceback
 import pandas as pd
 from logging_utils import setup_logging
+import logging
 from NetworkModule import get_network, NETWORK_REGISTRY, NetList
 import warnings
 
@@ -70,6 +71,52 @@ def get_model(model_type: str, input_dim: int, device: str, logger=None):
     return get_network(model_type, input_dim, logger).to(device)
 
 
+def load_data(
+    key: str,
+    model_type: str,
+    seed: int,
+    csv_path: str,
+    custom_n_tr: int = None,
+    custom_n_val: int = None,
+    custom_n_test: int = None,
+    custom_num_epoch: int = None,
+    custom_batch_size: int = None,
+    custom_lr: float = None,
+    device: str = "cpu",
+):
+    # Fetch data and settings
+    module, data_sizes, training_params = initialize_data_and_params(
+        key, model_type, csv_path
+    )
+
+    # Override default values if custom values are provided
+    if custom_n_tr:
+        data_sizes["n_tr"] = custom_n_tr
+    if custom_n_val:
+        data_sizes["n_val"] = custom_n_val
+    if custom_n_test:
+        data_sizes["n_test"] = custom_n_test
+    if custom_num_epoch:
+        training_params["num_epoch"] = custom_num_epoch
+    if custom_batch_size:
+        training_params["batch_size"] = custom_batch_size
+    if custom_lr:
+        training_params["lr"] = custom_lr
+
+    z_tr, z_val, _ = module.fetch(
+        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
+    )
+    (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
+
+    # Convert to tensor
+    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
+    y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
+    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
+    y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
+
+    return x_tr, y_tr, x_val, y_val, data_sizes, training_params
+
+
 def train_and_save(
     key: str,
     model_type: str,
@@ -104,31 +151,22 @@ def train_and_save(
         warnings.warn("CUDA is not available, using CPU instead.", UserWarning)
         device = "cpu"
 
-    # Fetch data and settings
-    module, data_sizes, training_params = initialize_data_and_params(
-        key, model_type, csv_path
+    # Load data
+    x_tr, y_tr, x_val, y_val, data_sizes, training_params = load_data(
+        key,
+        model_type,
+        seed,
+        csv_path,
+        custom_n_tr,
+        custom_n_val,
+        custom_n_test,
+        custom_num_epoch,
+        custom_batch_size,
+        custom_lr,
+        device,
     )
 
-    # Override default values if custom values are provided
-    if custom_n_tr:
-        data_sizes["n_tr"] = custom_n_tr
-    if custom_n_val:
-        data_sizes["n_val"] = custom_n_val
-    if custom_n_test:
-        data_sizes["n_test"] = custom_n_test
-    if custom_num_epoch:
-        training_params["num_epoch"] = custom_num_epoch
-    if custom_batch_size:
-        training_params["batch_size"] = custom_batch_size
-    if custom_lr:
-        training_params["lr"] = custom_lr
-
-    z_tr, z_val, _ = module.fetch(
-        data_sizes["n_tr"], data_sizes["n_val"], data_sizes["n_test"], seed
-    )
-    (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
-
-    logger.info(
+    logger.debug(
         f"Dataset {key} loaded with {data_sizes['n_tr']} training samples, {data_sizes['n_val']} validation samples"
     )
 
@@ -142,13 +180,7 @@ def train_and_save(
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    logger.info(f"Model {model_type} initialized with alpha={alpha}")
-
-    # Convert to tensor
-    x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
-    x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
+    logger.debug(f"Model {model_type} initialized with alpha={alpha}")
 
     # Get input dimension for the model
     input_dim = x_tr.shape[1:]  # (channels, height, width) for all models
@@ -166,7 +198,7 @@ def train_and_save(
     test_accuracies = []
     train_losses = [np.nan]
 
-    logger.info(f"Starting training for {training_params['num_epoch']} epochs")
+    logger.debug(f"Starting training for {training_params['num_epoch']} epochs")
 
     # Training loop
     for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
@@ -210,7 +242,7 @@ def train_and_save(
                             test_pred = (model(x_val) > 0).float()
                             test_acc = (test_pred == y_val).float().mean().item()
                             test_accuracies.append(test_acc)
-                            logger.info(
+                            logger.debug(
                                 f"Epoch {epoch+1}/{training_params['num_epoch']}, "
                                 f"Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
                             )
@@ -256,7 +288,7 @@ def train_and_save(
                 torch.cuda.empty_cache()
 
             # End of epoch logging
-            logger.info(
+            logger.debug(
                 f"Epoch {epoch+1}/{training_params['num_epoch']}, "
                 f"Average Training Loss: {epoch_loss/num_steps:.4f}"
             )
@@ -274,7 +306,7 @@ def train_and_save(
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
-                logger.info(
+                logger.debug(
                     f"Final Validation Loss: {val_loss:.4f}, Final Test Accuracy: {test_acc:.4f}"
                 )
 
@@ -337,7 +369,7 @@ def train_and_save(
     # save step and info
     step_fn_csv = os.path.join(dn, f"step_{seed:03d}.csv")
 
-    logger.info(
+    logger.debug(
         f"len('step') = {len(range(len(info)))}, len('lr') = {len([d['lr'] for d in info])}, len('idx') = {len([d['idx'] for d in info])}"
     )
 
@@ -360,14 +392,14 @@ def train_and_save(
         }
     ).to_csv(csv_fn, index=False)
 
-    logger.info(f"Training completed. Results saved to {fn} and {csv_fn}")
+    logger.debug(f"Training completed. Results saved to {fn} and {csv_fn}")
 
     return data_to_save
 
 
 def _validate_arguments(logger, args):
-    logger.info("Starting the training process")
-    logger.info(f"Arguments: {args}")
+    logger.debug("Starting the training process")
+    logger.debug(f"Arguments: {args}")
 
     if args.target not in DATA_MODULE_REGISTRY:
         raise ValueError(
@@ -389,7 +421,7 @@ def _validate_arguments(logger, args):
             args.seed = seed
             _run_training(args, default_config, logger)
 
-    logger.info("Training process completed successfully")
+    logger.debug("Training process completed successfully")
 
 
 def _run_training(args, default_config, logger):
@@ -431,6 +463,12 @@ def main():
         dest="compute_counterfactual",
         help="Disable the computation of counterfactual models (leave-one-out).",
     )
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        default="INFO",
+        help="Logging level. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL",
+    )
 
     parser.set_defaults(compute_counterfactual=True)
 
@@ -441,10 +479,12 @@ def main():
         args.save_dir = f"{args.target}_{args.model}"
 
     # 创建一个 logger 实例
+    log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     logger = setup_logging(
         f"{args.target}_{args.model}",
         args.seed,
         os.path.join(current_dir, args.save_dir),
+        level=log_level,
     )
 
     try:
