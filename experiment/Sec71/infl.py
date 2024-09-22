@@ -9,6 +9,9 @@ import warnings
 from logging_utils import setup_logging
 import logging
 from NetworkModule import get_network
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -26,7 +29,9 @@ NUM_EPOCHS = 100
 
 
 def load_data(key, n_tr, n_val, n_test, seed, device, logger=None):
-    module = fetch_data_module(key, data_dir=os.path.join(SCRIPT_DIR, "data"), logger=logger, seed=seed)
+    module = fetch_data_module(
+        key, data_dir=os.path.join(SCRIPT_DIR, "data"), logger=logger, seed=seed
+    )
     module.append_one = False
 
     z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
@@ -85,6 +90,9 @@ def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None):
 
 
 def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_true_{key}_{model_type}")
+    logger.info(f"Starting infl_true computation for {key}, {model_type}, seed {seed}")
+
     dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir)
     os.makedirs(dn, exist_ok=True)  # Ensure the directory exists
     device = f"cuda:{gpu}"
@@ -116,9 +124,13 @@ def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
         infl[i] = lossi.item() - loss.item()
 
     torch.save(infl, gn)
+    logger.info(f"Finished infl_true computation for {key}, {model_type}, seed {seed}")
 
 
 def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_segment_true_{key}_{model_type}")
+    logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
@@ -202,8 +214,8 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
         f"Full results saved to {os.path.join(dn, f'infl_segment_true_full_{seed:03d}.dat')}"
     )
 
-    logger.debug("infl_segment_true computation completed")
-    print(f"Results saved to {csv_fn}")
+    logger.debug(f"Results saved to {csv_fn}")
+    logger.info(f"Finished infl_segment_true computation for {key}, {model_type}, seed {seed}")
 
 
 def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None):
@@ -307,6 +319,9 @@ def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None):
 
 
 def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_icml_{key}_{model_type}")
+    logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir)
     hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
     device = f"cuda:{gpu}"
@@ -376,6 +391,7 @@ def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
         infl[i] = infl_i / res["n_tr"]
 
     torch.save(infl, gn)
+    logger.info(f"Finished infl_icml computation for {key}, {model_type}, seed {seed}")
 
 
 def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, fn=None):
@@ -446,6 +462,9 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
 
 
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None):
+    logger = logging.getLogger(f"infl_lie_{key}_{model_type}")
+    logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
@@ -477,8 +496,8 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None):
         f"Full results saved to {os.path.join(dn, f'infl_lie_full_{seed:03d}.dat')}"
     )
 
-    logger.debug("infl_lie computation completed")
-    print(f"Results saved to {csv_fn}")
+    logger.info(f"Finished infl_lie computation for {key}, {model_type}, seed {seed}")
+    logger.debug(f"Results saved to {csv_fn}")
 
 
 def main():
