@@ -25,8 +25,8 @@ MOMENTUM = 0.9
 NUM_EPOCHS = 100
 
 
-def load_data(key, n_tr, n_val, n_test, seed, device):
-    module = fetch_data_module(key)
+def load_data(key, n_tr, n_val, n_test, seed, device, logger=None):
+    module = fetch_data_module(key, data_dir=os.path.join(SCRIPT_DIR, "data"), logger=logger, seed=seed)
     module.append_one = False
 
     z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
@@ -52,6 +52,8 @@ def get_input_dim(x, model_type):
             input_dim = x.shape[1:]
         else:
             raise ValueError(f"Unexpected input shape: {x.shape}")
+    elif model_type == "cnn_cifar":
+        input_dim = x.shape[1:]
     else:
         # For other models, input_dim is the number of features
         input_dim = x.shape[1]

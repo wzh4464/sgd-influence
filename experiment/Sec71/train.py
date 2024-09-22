@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 11:44:02 am
+# Last Modified: Sunday, 22nd September 2024 7:58:27 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -41,10 +41,10 @@ from config import fetch_training_params
 
 
 def initialize_data_and_params(
-    key: str, model_type: str, csv_path: str
+    key: str, model_type: str, csv_path: str, logger=None, seed: int = 0
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
     """Initialize the data module and fetch training parameters for a dataset and model."""
-    module = fetch_data_module(key, data_dir=csv_path)
+    module = fetch_data_module(key, data_dir=csv_path,logger=logger, seed=seed)
 
     # Fetch the training parameters from the config file based on dataset and network
     config = fetch_training_params(key, model_type)
@@ -83,10 +83,11 @@ def load_data(
     custom_batch_size: int = None,
     custom_lr: float = None,
     device: str = "cpu",
+    logger=None,
 ):
     # Fetch data and settings
     module, data_sizes, training_params = initialize_data_and_params(
-        key, model_type, csv_path
+        key, model_type, csv_path, logger, seed
     )
 
     # Override default values if custom values are provided
@@ -164,6 +165,7 @@ def train_and_save(
         custom_batch_size,
         custom_lr,
         device,
+        logger
     )
 
     logger.debug(
@@ -175,15 +177,13 @@ def train_and_save(
         model = LogisticRegressionCV(random_state=seed, fit_intercept=False, cv=5)
         model.fit(x_tr, y_tr)
         alpha = 1 / (model.C_[0] * data_sizes["n_tr"])
-    elif model_type in {"dnn", "cnn"}:
-        alpha = 0.001  # You might want to tune this for DNN/CNN
     else:
-        raise ValueError(f"Unsupported model type: {model_type}")
+        alpha = 0.001  # You might want to tune this for DNN/CNN
 
     logger.debug(f"Model {model_type} initialized with alpha={alpha}")
 
     # Get input dimension for the model
-    input_dim = x_tr.shape[1:]  # (channels, height, width) for all models
+    input_dim = x_tr.shape[1:] # if model_type not in ["cnn_cifar"] else (3, x_tr.shape[1], x_tr.shape[2]) 
 
     # Training setup
     net_func = lambda: get_model(model_type, input_dim, device, logger)
@@ -202,6 +202,7 @@ def train_and_save(
 
     # Training loop
     for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
+        logger.info(f"Training model {n+1}/{data_sizes['n_tr']}")
         torch.manual_seed(seed)
         model = net_func()
         loss_fn = nn.BCEWithLogitsLoss()

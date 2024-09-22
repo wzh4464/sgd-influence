@@ -10,11 +10,11 @@
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/train.py",
             "args": [
-                "--target", "emnist",
-                "--model", "dnn",
+                "--target", "cifar",
+                "--model", "cnn",
                 "--seed", "0",
                 "--gpu", "0",
-                "--save_dir", "emnist_dnn_try",
+                "--save_dir", "result/cifar_cnn_try",
                 "--no-loo"
             ],
             "console": "integratedTerminal",

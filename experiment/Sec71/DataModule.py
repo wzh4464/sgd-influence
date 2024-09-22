@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 12:31:28 pm
+# Last Modified: Sunday, 22nd September 2024 3:52:51 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -204,8 +204,8 @@ class DataModule:
 
 
 class MnistModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
-        super().__init__(normalize, append_one, data_dir)
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.mnist = tf.keras.datasets.mnist
 
     def load(self):
@@ -252,10 +252,10 @@ class MnistModule(DataModule):
 
 
 class NewsModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
         if data_dir is None:
             data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
 
     def load(self):
         cache_file = os.path.join(self.data_dir, "news_data.pkl")
@@ -298,8 +298,8 @@ class NewsModule(DataModule):
 
 
 class AdultModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir="data"):
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir="data", logger=None, seed=0):
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.data_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), data_dir
         )
@@ -346,9 +346,9 @@ class AdultModule(DataModule):
 
 class CifarModule(DataModule):
     def __init__(
-        self, cifar_version=10, normalize=True, append_one=False, data_dir=None
+        self, cifar_version=10, normalize=True, append_one=False, data_dir=None, logger=None, seed=0
     ):
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.cifar_version = cifar_version
 
     def load(self):
@@ -374,7 +374,7 @@ class CifarModule(DataModule):
 
 
 class EMNISTModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
         """
         Initialize the EMNISTModule.
         Args:
@@ -384,7 +384,7 @@ class EMNISTModule(DataModule):
         """
         if data_dir is None:
             data_dir = os.path.expanduser("/home/zihan/.cache/emnist/")
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
 
         self.logger.info(
             f"EMNISTModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
