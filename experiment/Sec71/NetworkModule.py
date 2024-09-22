@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 7:58:54 pm
+# Last Modified: Sunday, 22nd September 2024 11:54:42 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -42,19 +42,6 @@ class BaseModel(nn.Module):
     def __init__(self, logger=None):
         super().__init__()
         self.logger = logger or logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-
-        # Add StreamHandler if no handlers are attached (prevents duplicate logs)
-        if not self.logger.hasHandlers():
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(
-                logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            )
-            stream_handler.setLevel(logging.INFO)
-            self.logger.addHandler(stream_handler)
-        else:
-            for handler in self.logger.handlers:
-                handler.setLevel(logging.INFO)
 
     def preprocess_input(self, x):
         raise NotImplementedError
@@ -99,11 +86,26 @@ class NetList(nn.Module):
 class LogReg(BaseModel):
     def __init__(self, input_dim, logger=None):
         super(LogReg, self).__init__(logger)
+        
+        # dim of input_dim
+        if isinstance(input_dim, (tuple, list, torch.Size)):
+            input_dim = np.prod(input_dim)
+        
         self.model = nn.Linear(input_dim, 1)
         self.logger.debug(f"Created LogReg model with input dimension: {input_dim}")
 
     def preprocess_input(self, x):
-        return x.view(x.size(0), -1)
+        # 首先确保 x 是 PyTorch 张量
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32)
+        
+        # 然后根据维度进行处理
+        if x.dim() == 1:
+            return x.view(1, -1)
+        elif x.dim() == 2:
+            return x
+        else:
+            return x.view(x.size(0), -1)
 
 
 @register_network("dnn")

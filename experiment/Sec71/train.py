@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 9:24:54 pm
+# Last Modified: Monday, 23rd September 2024 12:15:29 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -39,6 +39,22 @@ current_dir = os.path.dirname(file_abspath)  # 获取当前脚本所在的目录
 from DataModule import fetch_data_module
 from config import fetch_training_params
 
+import logging
+import functools
+
+def monitor_level_change(func):
+    @functools.wraps(func)
+    def wrapper(self, level):
+        old_level = self.level
+        result = func(self, level)
+        if old_level != self.level:
+            print(f"Logger '{self.name}' level changed from {old_level} to {self.level}")
+            # 这里可以设置一个断点
+        return result
+    return wrapper
+
+# 应用猴子补丁
+logging.Logger.setLevel = monitor_level_change(logging.Logger.setLevel)
 
 def initialize_data_and_params(
     key: str, model_type: str, csv_path: str, logger=None, seed: int = 0
@@ -179,8 +195,17 @@ def train_and_save(
     # Model selection and hyperparameter tuning
     if model_type == "logreg":
         model = LogisticRegressionCV(random_state=seed, fit_intercept=False, cv=5)
-        model.fit(x_tr, y_tr)
+        # reshape x_tr to 2D
+        x_tr = x_tr.view(data_sizes["n_tr"], -1)
+        y_tr = y_tr.view(data_sizes["n_tr"])
+        
+        x_tr_npclone = x_tr.clone().detach().cpu().numpy()
+        y_tr_npclone = y_tr.clone().detach().cpu().numpy()
+        
+        model.fit(x_tr_npclone, y_tr_npclone)
         alpha = 1 / (model.C_[0] * data_sizes["n_tr"])
+
+        y_tr = y_tr.float().view(-1, 1)
     else:
         alpha = 0.001  # You might want to tune this for DNN/CNN
 
@@ -263,6 +288,19 @@ def train_and_save(
                 idx = idx_list[i]
                 b = idx.size
                 idx = np.setdiff1d(idx, skip)
+                
+                logger.debug(f"Shape of x_tr[idx]: {x_tr[idx].shape}")
+                logger.debug(f"Type of model: {type(model)}")
+
+                # 检查模型的结构
+                if hasattr(model, 'model'):
+                    n_features = model.model.in_features
+                    logger.debug(f"Expected number of features: {n_features}")
+                else:
+                    logger.debug("Model structure is different than expected")
+
+                # 注意：LogisticRegressionCV 不能直接用 model(x_tr[idx]) 的方式调用
+                # 而是应该使用 model.predict() 或 model.predict_proba()
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
 
