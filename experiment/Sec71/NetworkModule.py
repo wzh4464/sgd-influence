@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 11:41:53 pm
+# Last Modified: Sunday, 22nd September 2024 12:32:03 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -34,7 +34,7 @@ def get_network(key, input_dim, logger=None):
     if key not in NETWORK_REGISTRY:
         logger.error(f"Network {key} not found in registry.")
         raise ValueError(f"Network {key} not found in registry.")
-    logger.info(f"Creating network: {key} with input dimension: {input_dim}")
+    logger.debug(f"Creating network: {key} with input dimension: {input_dim}")
     return NETWORK_REGISTRY[key](input_dim, logger)
 
 
@@ -42,11 +42,21 @@ class BaseModel(nn.Module):
     def __init__(self, logger=None):
         super().__init__()
         self.logger = logger or logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+
+        # Add StreamHandler if no handlers are attached (prevents duplicate logs)
+        if not self.logger.hasHandlers():
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            )
+            self.logger.addHandler(stream_handler)
 
     def preprocess_input(self, x):
         raise NotImplementedError
 
     def forward(self, x):
+        self.logger.debug(f"BaseModel forward pass with input shape: {x.shape}")
         x = self.preprocess_input(x)
         return self.model(x)
 
@@ -56,7 +66,7 @@ class NetList(nn.Module):
         super(NetList, self).__init__()
         self.logger = logger or logging.getLogger(__name__)
         self.models = nn.ModuleList(list_of_models)
-        self.logger.info(f"Created NetList with {len(list_of_models)} models")
+        self.logger.debug(f"Created NetList with {len(list_of_models)} models")
 
     def forward(self, x, idx=0):
         self.logger.debug(
@@ -86,7 +96,7 @@ class LogReg(BaseModel):
     def __init__(self, input_dim, logger=None):
         super(LogReg, self).__init__(logger)
         self.model = nn.Linear(input_dim, 1)
-        self.logger.info(f"Created LogReg model with input dimension: {input_dim}")
+        self.logger.debug(f"Created LogReg model with input dimension: {input_dim}")
 
     def preprocess_input(self, x):
         return x.view(x.size(0), -1)
@@ -109,7 +119,7 @@ class DNN(BaseModel):
             nn.ReLU(),
             nn.Linear(m[0], 1),
         )
-        self.logger.info(
+        self.logger.debug(
             f"Created DNN model with input dimension: {input_dim}, hidden layers: {m}"
         )
 
@@ -143,8 +153,8 @@ class DNN(BaseModel):
         diff = self.param_diff(other)
         for name, diff_tensor in diff.items():
             if torch.any(torch.abs(diff_tensor) > threshold):
-                self.logger.info(f"Difference in {name}:")
-                self.logger.info(diff_tensor)
+                self.logger.debug(f"Difference in {name}:")
+                self.logger.debug(diff_tensor)
 
 
 @register_network("cnn")
@@ -163,19 +173,36 @@ class CNN(BaseModel):
             nn.Flatten(),
             nn.Linear(self.m[1] * (height // 4) * (width // 4), 1),
         )
-        self.logger.info(
+        self.logger.debug(
             f"Created CNN model with input dimension: {input_dim}, channels: {m}"
         )
 
     def preprocess_input(self, x):
-        self.logger.debug(f"CNN input shape: {x.shape}")
+        self.logger.debug(f"CNN input shape before preprocessing: {x.shape}")
+        if x.dim() == 2:
+            batch_size = x.size(0)
+            x = x.view(batch_size, self.m[0], self.m[1], self.m[2])
+        elif x.dim() != 4:
+            raise ValueError(f"Unexpected input dimension: {x.shape}")
+        self.logger.debug(f"CNN input shape after preprocessing: {x.shape}")
         return x
 
     def forward(self, x):
         self.logger.debug(f"CNN forward input shape: {x.shape}")
+
         for i, layer in enumerate(self.model):
+            if isinstance(layer, nn.Conv2d):
+                self.logger.debug(
+                    f"Layer {i} ({type(layer).__name__}) expects input channels: {layer.in_channels}"
+                )
+            elif isinstance(layer, nn.Linear):
+                self.logger.debug(
+                    f"Layer {i} ({type(layer).__name__}) expects input features: {layer.in_features}"
+                )
+
             x = layer(x)
             self.logger.debug(
                 f"Layer {i} ({type(layer).__name__}) output shape: {x.shape}"
             )
+
         return x
