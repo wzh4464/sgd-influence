@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 10:04:13 pm
+# Last Modified: Sunday, 22nd September 2024 3:52:51 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -110,7 +110,9 @@ def native(country):
 
 
 class DataModule:
-    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None):
+    def __init__(
+        self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0
+    ):
         self.normalize = normalize
         self.append_one = append_one
         if data_dir is None:
@@ -121,7 +123,11 @@ class DataModule:
             self.data_dir = data_dir
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self.logger = logger or logging.getLogger(__name__)
+        # Initialize logger using setup_logging if not provided
+        self.logger = logger or setup_logging(
+            self.__class__.__name__, seed, self.data_dir
+        )
+
         self.logger.info(
             f"DataModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
         )
@@ -183,6 +189,11 @@ class DataModule:
             x_val, y_val = self.preprocess(x_val, y_val)
             x_test, y_test = self.preprocess(x_test, y_test)
 
+            # log info: 1. dataset 2. x_tr shape and x_val shape
+            self.logger.info(f"Dataset: {self.__class__.__name__}")
+            self.logger.info(f"x_tr shape: {x_tr.shape}, y_tr shape: {y_tr.shape}")
+            self.logger.info(f"x_val shape: {x_val.shape}, y_val shape: {y_val.shape}")
+
             result = ((x_tr, y_tr), (x_val, y_val), (x_test, y_test))
 
             with open(cache_file, "wb") as f:
@@ -193,37 +204,41 @@ class DataModule:
 
 
 class MnistModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
-        super().__init__(normalize, append_one, data_dir)
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.mnist = tf.keras.datasets.mnist
 
     def load(self):
+        self.logger.info("Loading MNIST data")
         cache_file = os.path.join(self.data_dir, "mnist_processed_data.pkl")
         lock_file = cache_file + ".lock"
 
         with FileLock(lock_file):
-            if os.path.exists(cache_file):
-                with open(cache_file, "rb") as f:
-                    return pickle.load(f)
+            return self.load_mnist_dataset(cache_file)
 
-            # Use TensorFlow to load MNIST data
-            (x_train, y_train), (_, _) = self.mnist.load_data()
+    def load_mnist_dataset(self, cache_file):
+        if os.path.exists(cache_file):
+            with open(cache_file, "rb") as f:
+                return pickle.load(f)
 
-            # Reshape to (samples, channels, height, width)
-            x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
+        # Use TensorFlow to load MNIST data
+        (x_train, y_train), (_, _) = self.mnist.load_data()
 
-            xtr1 = x_train[y_train == 1]
-            xtr7 = x_train[y_train == 7]
+        # Reshape to (samples, channels, height, width)
+        x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
 
-            x = np.r_[xtr1, xtr7]
-            y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
+        xtr1 = x_train[y_train == 1]
+        xtr7 = x_train[y_train == 7]
 
-            result = (x, y)
+        x = np.r_[xtr1, xtr7]
+        y = np.r_[np.zeros(xtr1.shape[0]), np.ones(xtr7.shape[0])]
 
-            with open(cache_file, "wb") as f:
-                pickle.dump(result, f)
+        result = (x, y)
 
-            return result
+        with open(cache_file, "wb") as f:
+            pickle.dump(result, f)
+
+        return result
 
     def preprocess(self, x, y):
         if self.normalize:
@@ -237,10 +252,10 @@ class MnistModule(DataModule):
 
 
 class NewsModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
         if data_dir is None:
             data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
 
     def load(self):
         cache_file = os.path.join(self.data_dir, "news_data.pkl")
@@ -283,8 +298,8 @@ class NewsModule(DataModule):
 
 
 class AdultModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir="data"):
-        super().__init__(normalize, append_one)
+    def __init__(self, normalize=True, append_one=False, data_dir="data", logger=None, seed=0):
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.data_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), data_dir
         )
@@ -331,12 +346,13 @@ class AdultModule(DataModule):
 
 class CifarModule(DataModule):
     def __init__(
-        self, cifar_version=10, normalize=True, append_one=False, data_dir=None
+        self, cifar_version=10, normalize=True, append_one=False, data_dir=None, logger=None, seed=0
     ):
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
         self.cifar_version = cifar_version
 
     def load(self):
+        self.logger.info(f"Loading CIFAR-{self.cifar_version} data")
         if self.cifar_version == 10:
             (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
         else:
@@ -358,7 +374,7 @@ class CifarModule(DataModule):
 
 
 class EMNISTModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None):
+    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
         """
         Initialize the EMNISTModule.
         Args:
@@ -368,7 +384,7 @@ class EMNISTModule(DataModule):
         """
         if data_dir is None:
             data_dir = os.path.expanduser("/home/zihan/.cache/emnist/")
-        super().__init__(normalize, append_one, data_dir)
+        super().__init__(normalize, append_one, data_dir, logger, seed)
 
         self.logger.info(
             f"EMNISTModule initialized: normalize={normalize}, append_one={append_one}, data_dir={self.data_dir}"
@@ -381,38 +397,40 @@ class EMNISTModule(DataModule):
         Returns:
             Tuple[np.ndarray, np.ndarray]: Processed EMNIST dataset (features and labels).
         """
+        self.logger.info("Loading EMNIST data")
         cache_file = os.path.join(self.data_dir, "emnist_processed_data.pkl")
         lock_file = cache_file + ".lock"
 
         with FileLock(lock_file):
-            if os.path.exists(cache_file):
-                self.logger.info("Loading data from cache.")
-                with open(cache_file, "rb") as f:
-                    return pickle.load(f)
+            return self._load_emnist_dataset(cache_file)
 
-            self.logger.info("Cache not found. Loading EMNIST dataset.")
+    def _load_emnist_dataset(self, cache_file):
+        if os.path.exists(cache_file):
+            self.logger.info("Loading data from cache.")
+            with open(cache_file, "rb") as f:
+                return pickle.load(f)
 
-            # Load 'letters' dataset for binary classification between 'A' and 'B'
-            x_train, y_train = extract_training_samples("letters")
+        self.logger.info("Cache not found. Loading EMNIST dataset.")
 
-            # Reshape the images to (channels, height, width) format
-            x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
+        # Load 'letters' dataset for binary classification between 'A' and 'B'
+        x_train, y_train = extract_training_samples("letters")
 
-            # Select classes 'A' (label 1) and 'B' (label 2)
-            mask = (y_train == 1) | (y_train == 2)
-            x_train = x_train[mask]
-            y_train = y_train[mask]
-            y_train = (y_train == 2).astype(
-                int
-            )  # Binary classification: 'A' = 0, 'B' = 1
+        # Reshape the images to (channels, height, width) format
+        x_train = x_train.reshape(-1, 1, 28, 28).astype("float32") / 255.0
 
-            # Save to cache
-            result = (x_train, y_train)
-            with open(cache_file, "wb") as f:
-                pickle.dump(result, f)
+        # Select classes 'A' (label 1) and 'B' (label 2)
+        mask = (y_train == 1) | (y_train == 2)
+        x_train = x_train[mask]
+        y_train = y_train[mask]
+        y_train = (y_train == 2).astype(int)  # Binary classification: 'A' = 0, 'B' = 1
 
-            self.logger.info("Data saved to cache.")
-            return result
+        # Save to cache
+        result = (x_train, y_train)
+        with open(cache_file, "wb") as f:
+            pickle.dump(result, f)
+
+        self.logger.info("Data saved to cache.")
+        return result
 
     def preprocess(self, x, y):
         """
@@ -420,11 +438,10 @@ class EMNISTModule(DataModule):
         """
         if self.normalize:
             self.logger.info("Normalizing data")
-            # For image data, we typically normalize per channel
-            for i in range(x.shape[1]):  # Iterate over channels
-                x[:, i] = (x[:, i] - x[:, i].mean()) / x[:, i].std()
-
-        # We don't append ones for image data, even if append_one is True
+            # Normalize per sample over axes (2, 3)
+            x = (x - x.mean(axis=(2, 3), keepdims=True)) / x.std(
+                axis=(2, 3), keepdims=True
+            )
         return x, y
 
 

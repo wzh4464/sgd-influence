@@ -3,7 +3,7 @@
 # Created Date: Monday, September 16th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 21st September 2024 10:02:48 pm
+# Last Modified: Sunday, 22nd September 2024 12:09:47 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -15,47 +15,29 @@ import logging
 from datetime import datetime
 import os
 
-
-def setup_logging(filename, seed, output_dir=None, level=logging.DEBUG):
-    # Create the logger
-    logger = logging.getLogger(filename)
-
-    # If the logger already has handlers, assume it's configured and return it
-    if logger.handlers:
-        return logger
-
-    # Set the log level
+def setup_logging(name, seed, save_dir, level=logging.INFO):
+    logger = logging.getLogger(name)
     logger.setLevel(level)
 
-    # Create the output directory if it doesn't exist
-    if output_dir is None:
-        output_dir = "logs"
-    log_dir = os.path.join(output_dir, "logs")
-    os.makedirs(log_dir, exist_ok=True)
+    # Clear existing handlers
+    if logger.hasHandlers():
+        logger.handlers.clear()
 
-    # Generate the timestamp
-    timestamp = datetime.now().strftime("%m%d%H%M%S")
+    # Create handlers
+    c_handler = logging.StreamHandler()
+    os.makedirs(save_dir, exist_ok=True)
+    f_handler = logging.FileHandler(os.path.join(save_dir, f"log_{seed}.log"), mode='w')
+    c_handler.setLevel(level)
+    f_handler.setLevel(level)
 
-    # Create the log filename
-    log_filename = f"{filename}_{seed}_{timestamp}.log"
-    log_path = os.path.join(log_dir, log_filename)
+    # Create formatters and add to handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    c_handler.setFormatter(formatter)
+    f_handler.setFormatter(formatter)
 
-    # Create a file handler
-    file_handler = logging.FileHandler(log_path)
-    file_handler.setLevel(level)
+    # Add handlers to logger
+    logger.addHandler(c_handler)
+    logger.addHandler(f_handler)
 
-    # Create a console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-
-    # Create a formatter and add it to the handlers
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-
-    # Add the handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    logger.info(f"Logging setup completed. Log file: {log_path}")
     return logger
+

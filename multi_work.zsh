@@ -61,12 +61,12 @@ TRAIN_SCRIPT="$WORK_DIR/train.py"
 # '
 
 PYTHON_COMMAND='
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model cnn --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type sgd --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type icml --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type lie --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type segment_true --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target cifar --model cnn_cifar --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --seed "$seed" --type segment_true --gpu 0;
 '
 
 # 显示调试信息

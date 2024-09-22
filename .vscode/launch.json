@@ -4,22 +4,22 @@
     // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "Python: Train Script",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/train.py",
             "args": [
-                "--target", "emnist",
-                "--model", "dnn",
+                "--target", "cifar",
+                "--model", "cnn",
                 "--seed", "0",
                 "--gpu", "0",
-                "--num_epoch", "21",
+                "--save_dir", "result/cifar_cnn_try",
+                "--no-loo"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
-            "cwd": "${workspaceFolder}/experiment/Sec71"
+            "cwd": "${workspaceFolder}"
         },
         {
             "name": "Python: Infl Script",
@@ -27,15 +27,16 @@
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/infl.py",
             "args": [
-                "--target", "mnist",
-                "--model", "dnn",
-                "--type", "lie",
+                "--target", "emnist",
+                "--model", "cnn",
+                "--type", "sgd",
                 "--seed", "0",
                 "--gpu", "0",
+                "--save_dir", "emnist_cnn_try",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "${workspaceFolder}/experiment/Sec71"
+            "cwd": "${workspaceFolder}"
         },
         {
             "name": "Python: check Script",

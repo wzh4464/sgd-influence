@@ -7,6 +7,11 @@ from DataModule import fetch_data_module, DATA_MODULE_REGISTRY
 from NetworkModule import NETWORK_REGISTRY, NetList
 import warnings
 from logging_utils import setup_logging
+import logging
+from NetworkModule import get_network
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -23,17 +28,41 @@ MOMENTUM = 0.9
 NUM_EPOCHS = 100
 
 
-def load_data(key, n_tr, n_val, n_test, seed, device):
-    module = fetch_data_module(key)
+def load_data(key, n_tr, n_val, n_test, seed, device, logger=None):
+    module = fetch_data_module(
+        key, data_dir=os.path.join(SCRIPT_DIR, "data"), logger=logger, seed=seed
+    )
+    module.append_one = False
+
     z_tr, z_val, _ = module.fetch(n_tr, n_val, n_test, seed)
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
 
+    # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
-    y_tr = torch.from_numpy(np.expand_dims(y_tr, axis=1)).to(torch.float32).to(device)
+    y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
-    y_val = torch.from_numpy(np.expand_dims(y_val, axis=1)).to(torch.float32).to(device)
+    y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
 
     return x_tr, y_tr, x_val, y_val
+
+
+def get_input_dim(x, model_type):
+    if model_type == "cnn":
+        if x.dim() == 2:
+            # Flattened input, need to reshape
+            img_size = int(np.sqrt(x.shape[1]))
+            input_dim = (1, img_size, img_size)
+        elif x.dim() == 4:
+            # Input already has channels, height, width
+            input_dim = x.shape[1:]
+        else:
+            raise ValueError(f"Unexpected input shape: {x.shape}")
+    elif model_type == "cnn_cifar":
+        input_dim = x.shape[1:]
+    else:
+        # For other models, input_dim is the number of features
+        input_dim = x.shape[1]
+    return input_dim
 
 
 def compute_gradient(x, y, model, loss_fn):
@@ -61,6 +90,9 @@ def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None):
 
 
 def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_true_{key}_{model_type}")
+    logger.info(f"Starting infl_true computation for {key}, {model_type}, seed {seed}")
+
     dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir)
     os.makedirs(dn, exist_ok=True)  # Ensure the directory exists
     device = f"cuda:{gpu}"
@@ -70,7 +102,13 @@ def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    # Get input_dim
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -86,14 +124,23 @@ def infl_true(key, model_type, seed=0, gpu=0, save_dir=None):
         infl[i] = lossi.item() - loss.item()
 
     torch.save(infl, gn)
+    logger.info(f"Finished infl_true computation for {key}, {model_type}, seed {seed}")
+
 
 def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_segment_true_{key}_{model_type}")
+    logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
 
-    logger = setup_logging(f"infl_segment_true_{key}_{model_type}", seed)
-    logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
+    logger = setup_logging(
+        f"infl_segment_true_{key}_{model_type}", seed, dn, level=logging.INFO
+    )
+    logger.debug(
+        f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}"
+    )
 
     device = f"cuda:{gpu}"
     res = torch.load(fn, map_location=device)
@@ -101,7 +148,12 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -110,34 +162,41 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
 
     # Compute influence for each epoch
     for epoch in range(num_epochs + 1):
-        logger.info(f"Computing influence for epoch {epoch}")
-        
+        logger.debug(f"Computing influence for epoch {epoch}")
+
         # Calculate the number of steps for this epoch
         steps_per_epoch = int(np.ceil(res["n_tr"] / res["batch_size"]))
         total_steps = epoch * steps_per_epoch
 
+        # Get input_dim
+        input_dim = get_input_dim(x_tr, model_type)
+        # Initialize model with correct input_dim
+        model = get_network(model_type, input_dim).to(device)
         # Use the model state at the end of this epoch
         if epoch < num_epochs:
-            model = res["models"].models[total_steps].to(device)
+            # Load state dict
+            model.load_state_dict(res["models"].models[total_steps].state_dict())
+
         else:
-            model = res["models"].models[-1].to(device)
-        
+            # Load state dict
+            model.load_state_dict(res["models"].models[-1].state_dict())
+
         model.eval()
 
         # Compute influence
         z = model(x_val)
         loss = loss_fn(z, y_val)
         infl = np.zeros(res["n_tr"])
-        
+
         for i in range(res["n_tr"]):
             m = res["counterfactual"][i].models[epoch].to(device)
             m.eval()
             zi = m(x_val)
             lossi = loss_fn(zi, y_val)
             infl[i] = lossi.item() - loss.item()
-        
+
         infl_list.append(infl)
-        logger.info(f"Completed influence computation for epoch {epoch}")
+        logger.debug(f"Completed influence computation for epoch {epoch}")
 
     # Compute differences between consecutive epochs
     diff_dict = {
@@ -147,14 +206,16 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None):
 
     # Save to CSV
     pd.DataFrame(diff_dict).to_csv(csv_fn, index=False)
-    logger.info(f"CSV results saved to {csv_fn}")
+    logger.debug(f"CSV results saved to {csv_fn}")
 
     # Save full results
     torch.save(infl_list, os.path.join(dn, f"infl_segment_true_full_{seed:03d}.dat"))
-    logger.info(f"Full results saved to {os.path.join(dn, f'infl_segment_true_full_{seed:03d}.dat')}")
+    logger.debug(
+        f"Full results saved to {os.path.join(dn, f'infl_segment_true_full_{seed:03d}.dat')}"
+    )
 
-    logger.info("infl_segment_true computation completed")
-    print(f"Results saved to {csv_fn}")
+    logger.debug(f"Results saved to {csv_fn}")
+    logger.info(f"Finished infl_segment_true computation for {key}, {model_type}, seed {seed}")
 
 
 def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None):
@@ -166,7 +227,13 @@ def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None):
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    # Get input_dim
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -216,7 +283,13 @@ def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None):
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    # Get input_dim
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -246,6 +319,9 @@ def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None):
 
 
 def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
+    logger = logging.getLogger(f"infl_icml_{key}_{model_type}")
+    logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir)
     hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
     device = f"cuda:{gpu}"
@@ -255,7 +331,13 @@ def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    # Get input_dim
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -309,6 +391,7 @@ def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None):
         infl[i] = infl_i / res["n_tr"]
 
     torch.save(infl, gn)
+    logger.info(f"Finished infl_icml computation for {key}, {model_type}, seed {seed}")
 
 
 def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, fn=None):
@@ -319,7 +402,13 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
         key, res["n_tr"], res["n_val"], res["n_test"], seed, device
     )
 
-    model = res["models"].models[-1].to(device)
+    # Get input_dim
+    input_dim = get_input_dim(x_tr, model_type)
+    # Initialize model with correct input_dim
+    model = get_network(model_type, input_dim).to(device)
+    # Load state dict
+    model.load_state_dict(res["models"].models[-1].state_dict())
+
     loss_fn = torch.nn.BCEWithLogitsLoss()
     model.eval()
 
@@ -329,8 +418,8 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
     steps_per_epoch = (res["n_tr"] + res["batch_size"] - 1) // res["batch_size"]
     total_steps = custom_epoch * steps_per_epoch
 
-    logger.info(f"SPE: {steps_per_epoch}")
-    logger.info(f"Total steps: {total_steps}")
+    logger.debug(f"SPE: {steps_per_epoch}")
+    logger.debug(f"Total steps: {total_steps}")
 
     assert total_steps <= len(res["info"])
 
@@ -339,7 +428,7 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
     info = res["info"]
     infl = np.zeros(res["n_tr"])
 
-    logger.info(f"Starting influence computation for epoch {custom_epoch}")
+    logger.debug(f"Starting influence computation for epoch {custom_epoch}")
 
     for t in range(total_steps - 1, -1, -1):
         m = models[t]
@@ -366,29 +455,32 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
             u[j] -= lr * param.grad.data
 
         if t % steps_per_epoch == 0:
-            logger.info(f"Completed step {t} of {total_steps}")
+            logger.debug(f"Completed step {t} of {total_steps}")
 
-    logger.info(f"Finished influence computation for epoch {custom_epoch}")
+    logger.debug(f"Finished influence computation for epoch {custom_epoch}")
     return infl
 
 
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None):
+    logger = logging.getLogger(f"infl_lie_{key}_{model_type}")
+    logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
+    
     dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
 
-    logger = setup_logging(f"infl_lie_{key}_{model_type}", seed)
-    logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
+    logger = setup_logging(f"infl_lie_{key}_{model_type}", seed, dn, level=logging.INFO)
+    logger.debug(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
 
     res = torch.load(fn, map_location=f"cuda:{gpu}")
     num_epochs = res["num_epoch"]
     infl_list = []
 
     for epoch in range(num_epochs + 1):
-        logger.info(f"Computing influence for epoch {epoch}")
+        logger.debug(f"Computing influence for epoch {epoch}")
         infl = infl_lie_helper(key, model_type, epoch, seed, gpu, logger, fn)
         infl_list.append(infl)
-        logger.info(f"Completed influence computation for epoch {epoch}")
+        logger.debug(f"Completed influence computation for epoch {epoch}")
 
     diff_dict = {
         f"diff_{i-1}_{i}": infl_list[i] - infl_list[i - 1]
@@ -397,15 +489,15 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None):
 
     if is_csv:
         pd.DataFrame(diff_dict).to_csv(csv_fn, index=False)
-        logger.info(f"CSV results saved to {csv_fn}")
+        logger.debug(f"CSV results saved to {csv_fn}")
 
     torch.save(infl_list, os.path.join(dn, f"infl_lie_full_{seed:03d}.dat"))
-    logger.info(
+    logger.debug(
         f"Full results saved to {os.path.join(dn, f'infl_lie_full_{seed:03d}.dat')}"
     )
 
-    logger.info("infl_lie computation completed")
-    print(f"Results saved to {csv_fn}")
+    logger.info(f"Finished infl_lie computation for {key}, {model_type}, seed {seed}")
+    logger.debug(f"Results saved to {csv_fn}")
 
 
 def main():
@@ -418,6 +510,12 @@ def main():
     parser.add_argument(
         "--save_dir", type=str, help="directory to save results"
     )  # New argument
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        default="INFO",
+        help="Logging level. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL",
+    )
 
     args = parser.parse_args()
 

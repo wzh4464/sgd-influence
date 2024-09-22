@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 9:52:18 am
+# Last Modified: Sunday, 22nd September 2024 9:24:45 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -94,7 +94,7 @@ DATASET_NETWORK_CONFIG = {
     ("adult", "cnn"): {
         "num_epoch": 21,
         "batch_size": 60,
-        "lr": 0.01,
+        "lr": 0.02,
         "decay": True,
         "n_tr": 200,
         "n_val": 200,
@@ -125,9 +125,9 @@ DATASET_NETWORK_CONFIG = {
         "batch_size": 128,
         "lr": 0.01,
         "decay": True,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
     },
     ("emnist", "logreg"): {
         "num_epoch": 21,
@@ -150,14 +150,23 @@ DATASET_NETWORK_CONFIG = {
         # good
     },
     ("emnist", "cnn"): {
-        "num_epoch": 25,
-        "batch_size": 60,
-        "lr": 0.002,
+        "num_epoch": 21,
+        "batch_size": 64,
+        "lr": 0.2,
         "decay": True,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
         # not tried
+    },
+    ("cifar", "cnn_cifar" ): {
+        "num_epoch": 21,
+        "batch_size": 64,
+        "lr": 0.01,
+        "decay": True,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
     },
 }
 
