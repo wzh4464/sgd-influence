@@ -15,58 +15,59 @@ PYTHON_ENV="$HOME_DIR/sgd-influence/.venv/bin/python"
 WORK_DIR="$HOME_DIR/sgd-influence/experiment/Sec71"
 TRAIN_SCRIPT="$WORK_DIR/train.py"
 
-PYTHON_COMMAND='
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type segment_true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type segment_true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type lie --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type segment_true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type segment_true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type segment_true --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type lie --seed "$seed" --gpu 0;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type segment_true --seed "$seed" --gpu 0;
-'
-
 # PYTHON_COMMAND='
-#     $PYTHON_ENV "$WORK_DIR/train.py" --target cifar --model dnn --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model dnn --type true --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model dnn --type sgd --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model dnn --type icml --seed "$seed" --gpu 0;
-#     $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model dnn --type lie --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type segment_true --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type segment_true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type lie --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type segment_true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type segment_true --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type segment_true --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model dnn --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type true --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type sgd --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type icml --seed "$seed" --gpu 0;
+# #     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type lie --seed "$seed" --gpu 0;
+#     $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type segment_true --seed "$seed" --gpu 0;
 # '
+
+PYTHON_COMMAND='
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model cnn --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type true --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type sgd --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type icml --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type lie --seed "$seed" --gpu 0;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type segment_true --gpu 0;
+'
 
 # 显示调试信息
 echo "========== Debug Info =========="

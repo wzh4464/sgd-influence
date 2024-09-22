@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 20th September 2024 7:28:25 pm
+# Last Modified: Sunday, 22nd September 2024 9:52:18 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -25,22 +25,22 @@ DATASET_NETWORK_CONFIG = {
     },
     ("mnist", "dnn"): {
         "num_epoch": 21,
-        "batch_size": 60,
-        "lr": 0.003,
+        "batch_size": 64,
+        "lr": 0.0005,
         "decay": False,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
         # used
     },
     ("mnist", "cnn"): {
         "num_epoch": 21,
-        "batch_size": 60,
-        "lr": 0.003,
-        "decay": True,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "batch_size": 64,
+        "lr": 0.0004,
+        "decay": False,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
         # not tried
     },
     # 20news is not good
@@ -142,7 +142,7 @@ DATASET_NETWORK_CONFIG = {
     ("emnist", "dnn"): {
         "num_epoch": 21,
         "batch_size": 60,
-        "lr": 0.2,
+        "lr": 0.06,
         "decay": True,
         "n_tr": 200,
         "n_val": 200,
