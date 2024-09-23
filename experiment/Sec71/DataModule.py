@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 3:52:51 pm
+# Last Modified: Monday, 23rd September 2024 10:57:27 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -353,13 +353,24 @@ class CifarModule(DataModule):
 
     def load(self):
         self.logger.info(f"Loading CIFAR-{self.cifar_version} data")
-        if self.cifar_version == 10:
-            (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
-        else:
-            (x_train, y_train), (x_test, y_test) = (
-                tf.keras.datasets.cifar100.load_data()
-            )
+        cache_file = os.path.join(
+            self.data_dir, f"cifar{self.cifar_version}_processed_data.pkl"
+        )
+        lock_file = cache_file + ".lock"
 
+        with FileLock(lock_file):
+            return self._load_data_from_cache(cache_file)
+
+    def _load_data_from_cache(self, cache_file):
+        if os.path.exists(cache_file):
+            with open(cache_file, "rb") as f:
+                return pickle.load(f)
+
+        (x_train, y_train), (x_test, y_test) = (
+            tf.keras.datasets.cifar10.load_data()
+            if self.cifar_version == 10
+            else tf.keras.datasets.cifar100.load_data()
+        )
         x = np.vstack((x_train, x_test))
         y = np.vstack((y_train, y_test)).squeeze()
 
@@ -370,11 +381,18 @@ class CifarModule(DataModule):
         y = y[mask]
         y = (y == 1).astype(int)
 
-        return x, y
+        result = (x, y)
+
+        with open(cache_file, "wb") as f:
+            pickle.dump(result, f)
+
+        return result
 
 
 class EMNISTModule(DataModule):
-    def __init__(self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0):
+    def __init__(
+        self, normalize=True, append_one=False, data_dir=None, logger=None, seed=0
+    ):
         """
         Initialize the EMNISTModule.
         Args:
@@ -383,7 +401,8 @@ class EMNISTModule(DataModule):
             data_dir (str): Directory where the data will be stored.
         """
         if data_dir is None:
-            data_dir = os.path.expanduser("/home/zihan/.cache/emnist/")
+            # Use a more generic path that works across different environments
+            data_dir = os.path.join(os.path.expanduser("~"), ".cache", "emnist")
         super().__init__(normalize, append_one, data_dir, logger, seed)
 
         self.logger.info(
