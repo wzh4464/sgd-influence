@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 23rd September 2024 10:42:42 am
+# Last Modified: Monday, 23rd September 2024 10:48:34 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -40,6 +40,7 @@ from DataModule import fetch_data_module
 from config import fetch_training_params
 
 import logging
+
 # import functools
 
 # def monitor_level_change(func):
@@ -56,11 +57,12 @@ import logging
 # # 应用猴子补丁
 # logging.Logger.setLevel = monitor_level_change(logging.Logger.setLevel)
 
+
 def initialize_data_and_params(
     key: str, model_type: str, csv_path: str, logger=None, seed: int = 0
 ) -> Tuple[Any, Dict[str, int], Dict[str, Any]]:
     """Initialize the data module and fetch training parameters for a dataset and model."""
-    module = fetch_data_module(key, data_dir=csv_path,logger=logger, seed=seed)
+    module = fetch_data_module(key, data_dir=csv_path, logger=logger, seed=seed)
 
     # Fetch the training parameters from the config file based on dataset and network
     config = fetch_training_params(key, model_type)
@@ -98,6 +100,7 @@ def load_data(
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
     custom_lr: float = None,
+    relabel_percentage: float = None,
     device: str = "cpu",
     logger=None,
 ):
@@ -125,13 +128,25 @@ def load_data(
     )
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
 
+    # Relabel a percentage of training data if specified
+    relabeled_indices = None
+    if relabel_percentage is not None and relabel_percentage > 0:
+        num_to_relabel = int(data_sizes["n_tr"] * relabel_percentage / 100)
+        relabeled_indices = np.random.choice(
+            data_sizes["n_tr"], num_to_relabel, replace=False
+        )
+        y_tr[relabeled_indices] = 1 - y_tr[relabeled_indices]
+        logger.info(
+            f"Relabeled {num_to_relabel} samples ({relabel_percentage}% of training data)"
+        )
+
     # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
     y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
     y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
 
-    return x_tr, y_tr, x_val, y_val, data_sizes, training_params
+    return x_tr, y_tr, x_val, y_val, data_sizes, training_params, relabeled_indices
 
 
 def train_and_save(
@@ -146,6 +161,7 @@ def train_and_save(
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
     custom_lr: float = None,
+    relabel_percentage: float = None,
     compute_counterfactual: bool = True,
     logger=None,
     save_dir: str = None,
@@ -173,19 +189,22 @@ def train_and_save(
             device = "cpu"
 
     # Load data
-    x_tr, y_tr, x_val, y_val, data_sizes, training_params = load_data(
-        key,
-        model_type,
-        seed,
-        csv_path,
-        custom_n_tr,
-        custom_n_val,
-        custom_n_test,
-        custom_num_epoch,
-        custom_batch_size,
-        custom_lr,
-        device,
-        logger
+    x_tr, y_tr, x_val, y_val, data_sizes, training_params, relabeled_indices = (
+        load_data(
+            key,
+            model_type,
+            seed,
+            csv_path,
+            custom_n_tr,
+            custom_n_val,
+            custom_n_test,
+            custom_num_epoch,
+            custom_batch_size,
+            custom_lr,
+            relabel_percentage,
+            device,
+            logger,
+        )
     )
 
     logger.debug(
@@ -198,10 +217,10 @@ def train_and_save(
         # reshape x_tr to 2D
         x_tr = x_tr.view(data_sizes["n_tr"], -1)
         y_tr = y_tr.view(data_sizes["n_tr"])
-        
+
         x_tr_npclone = x_tr.clone().detach().cpu().numpy()
         y_tr_npclone = y_tr.clone().detach().cpu().numpy()
-        
+
         model.fit(x_tr_npclone, y_tr_npclone)
         alpha = 1 / (model.C_[0] * data_sizes["n_tr"])
 
@@ -212,7 +231,9 @@ def train_and_save(
     logger.debug(f"Model {model_type} initialized with alpha={alpha}")
 
     # Get input dimension for the model
-    input_dim = x_tr.shape[1:] # if model_type not in ["cnn_cifar"] else (3, x_tr.shape[1], x_tr.shape[2]) 
+    input_dim = x_tr.shape[
+        1:
+    ]  # if model_type not in ["cnn_cifar"] else (3, x_tr.shape[1], x_tr.shape[2])
 
     # Training setup
     net_func = lambda: get_model(model_type, input_dim, device, logger)
@@ -288,7 +309,7 @@ def train_and_save(
                 idx = idx_list[i]
                 b = idx.size
                 idx = np.setdiff1d(idx, skip)
-                
+
                 logger.debug(f"Shape of x_tr[idx]: {x_tr[idx].shape}")
                 logger.debug(f"Type of model: {type(model)}")
 
@@ -395,6 +416,16 @@ def train_and_save(
         # decay: boolean, whether learning rate decay is applied
     }
 
+    data_to_save["relabeled_indices"] = relabeled_indices
+
+    # save relabeled indices to csv
+    if relabeled_indices is not None:
+        relabeled_indices_fn = os.path.join(dn, f"relabeled_indices_{seed:03d}.csv")
+        pd.DataFrame({"relabeled_indices": relabeled_indices}).to_csv(
+            relabeled_indices_fn, index=False
+        )
+        logger.debug(f"Relabeled indices saved to {relabeled_indices_fn}")
+
     # Save data
     torch.save(data_to_save, fn)
 
@@ -464,12 +495,13 @@ def _run_training(args, default_config, logger):
         args.model,
         args.seed,
         args.gpu,
-        custom_n_tr=args.n_tr or default_config.get("n_tr"),
-        custom_n_val=args.n_val or default_config.get("n_val"),
-        custom_n_test=args.n_test or default_config.get("n_test"),
-        custom_num_epoch=args.num_epoch or default_config.get("num_epoch"),
-        custom_batch_size=args.batch_size or default_config.get("batch_size"),
-        custom_lr=args.lr or default_config.get("lr"),
+        custom_n_tr=args.n_tr,
+        custom_n_val=args.n_val,
+        custom_n_test=args.n_test,
+        custom_num_epoch=args.num_epoch,
+        custom_batch_size=args.batch_size,
+        custom_lr=args.lr,
+        relabel_percentage=args.relabel,
         compute_counterfactual=args.compute_counterfactual,
         logger=logger,
         save_dir=args.save_dir,
@@ -502,6 +534,9 @@ def main():
         type=str,
         default="INFO",
         help="Logging level. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL",
+    )
+    parser.add_argument(
+        "--relabel", type=float, help="percentage of training data to relabel"
     )
 
     parser.set_defaults(compute_counterfactual=True)
