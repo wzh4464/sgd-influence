@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 23rd September 2024 12:15:29 am
+# Last Modified: Monday, 23rd September 2024 10:25:13 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -292,15 +292,6 @@ def train_and_save(
                 logger.debug(f"Shape of x_tr[idx]: {x_tr[idx].shape}")
                 logger.debug(f"Type of model: {type(model)}")
 
-                # 检查模型的结构
-                if hasattr(model, 'model'):
-                    n_features = model.model.in_features
-                    logger.debug(f"Expected number of features: {n_features}")
-                else:
-                    logger.debug("Model structure is different than expected")
-
-                # 注意：LogisticRegressionCV 不能直接用 model(x_tr[idx]) 的方式调用
-                # 而是应该使用 model.predict() 或 model.predict_proba()
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
 

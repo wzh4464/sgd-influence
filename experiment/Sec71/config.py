@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Sunday, 22nd September 2024 9:24:45 pm
+# Last Modified: Monday, 23rd September 2024 12:21:02 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -131,12 +131,12 @@ DATASET_NETWORK_CONFIG = {
     },
     ("emnist", "logreg"): {
         "num_epoch": 21,
-        "batch_size": 60,
-        "lr": 0.2,
+        "batch_size": 64,
+        "lr": 0.003,
         "decay": True,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
         # well, just so so
     },
     ("emnist", "dnn"): {
