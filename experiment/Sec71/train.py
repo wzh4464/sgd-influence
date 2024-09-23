@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 23rd September 2024 10:25:13 am
+# Last Modified: Monday, 23rd September 2024 10:42:42 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -40,21 +40,21 @@ from DataModule import fetch_data_module
 from config import fetch_training_params
 
 import logging
-import functools
+# import functools
 
-def monitor_level_change(func):
-    @functools.wraps(func)
-    def wrapper(self, level):
-        old_level = self.level
-        result = func(self, level)
-        if old_level != self.level:
-            print(f"Logger '{self.name}' level changed from {old_level} to {self.level}")
-            # 这里可以设置一个断点
-        return result
-    return wrapper
+# def monitor_level_change(func):
+#     @functools.wraps(func)
+#     def wrapper(self, level):
+#         old_level = self.level
+#         result = func(self, level)
+#         if old_level != self.level:
+#             print(f"Logger '{self.name}' level changed from {old_level} to {self.level}")
+#             # 这里可以设置一个断点
+#         return result
+#     return wrapper
 
-# 应用猴子补丁
-logging.Logger.setLevel = monitor_level_change(logging.Logger.setLevel)
+# # 应用猴子补丁
+# logging.Logger.setLevel = monitor_level_change(logging.Logger.setLevel)
 
 def initialize_data_and_params(
     key: str, model_type: str, csv_path: str, logger=None, seed: int = 0
