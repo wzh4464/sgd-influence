@@ -52,6 +52,9 @@ def get_input_dim(x, model_type):
             # Flattened input, need to reshape
             img_size = int(np.sqrt(x.shape[1]))
             input_dim = (1, img_size, img_size)
+        else:
+            # For images, input_dim is the shape of the image
+            input_dim = x.shape[1:]
     else:
         # For other models, input_dim is the number of features
         input_dim = x.shape[1:]
