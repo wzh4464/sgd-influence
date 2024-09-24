@@ -97,12 +97,12 @@ PYTHON_COMMAND='
     $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type segment_true --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
 
     # ADULT
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model cnn --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model cnn --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model cnn --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model cnn --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model cnn --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model cnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_cnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5 --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
 
     $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5 --relabel 5;
     $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
