@@ -45,71 +45,71 @@ echo "TRAIN_SCRIPT: $TRAIN_SCRIPT"
 
 PYTHON_COMMAND='
     # MNIST
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model cnn --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model cnn --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model cnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_cnn_relabel_5_fix_y_tr -- relabel 5;
 
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model dnn --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_dnn_relabel_5_fix_y_tr -- relabel 5;
 
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/mnist/mnist_logreg_relabel_5_fix_y_tr -- relabel 5;
 
     # EMNIST
-    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model cnn --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model cnn --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model cnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_cnn_relabel_5_fix_y_tr -- relabel 5;
 
-    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model dnn --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model dnn --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_dnn_relabel_5_fix_y_tr -- relabel 5;
 
-    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model logreg --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5;
-
-    # CIFAR
-    $PYTHON_ENV "$WORK_DIR/train.py" --target cifar --model cnn_cifar --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type true --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type sgd --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type icml --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type lie --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type segment_true --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model logreg --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/emnist/emnist_logreg_relabel_5_fix_y_tr -- relabel 5;
 
     # ADULT
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model dnn --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_dnn_relabel_5_fix_y_tr -- relabel 5;
 
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5 --relabel 5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/adult/adult_logreg_relabel_5_fix_y_tr -- relabel 5;
+
+    # CIFAR
+    $PYTHON_ENV "$WORK_DIR/train.py" --target cifar --model cnn_cifar --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr --relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type true --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type sgd --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type icml --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type lie --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr -- relabel 5;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target cifar --model cnn_cifar --type segment_true --seed "$seed" --gpu 0 --save_dir result/cifar/cifar_cnn_cifar_relabel_5_fix_y_tr -- relabel 5;
 '
 
 # PYTHON_COMMAND='
