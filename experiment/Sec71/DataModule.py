@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 23rd September 2024 10:57:52 am
+# Last Modified: Tuesday, 24th September 2024 4:34:59 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -157,14 +157,14 @@ class DataModule:
             f"{self.__class__.__name__}_{n_tr}_{n_val}_{n_test}_{seed}.pkl",
         )
         lock_file = cache_file + ".lock"
-        self.logger.info(
+        self.logger.debug(
             f"Fetching data with parameters: n_tr={n_tr}, n_val={n_val}, n_test={n_test}, seed={seed}"
         )
         self.logger.info(f"Cache file: {cache_file}")
 
         with FileLock(lock_file):
             if os.path.exists(cache_file):
-                self.logger.info(f"Loading data from cache file {cache_file}")
+                self.logger.debug(f"Loading data from cache file {cache_file}")
                 with open(cache_file, "rb") as f:
                     return pickle.load(f)
 
