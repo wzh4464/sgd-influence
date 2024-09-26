@@ -3,7 +3,7 @@
 # Created Date: Friday, September 20th 2024
 # Author: Zihan
 # -----
-# Last Modified: Wednesday, 25th September 2024 10:01:13 am
+# Last Modified: Thursday, 26th September 2024 4:01:20 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -47,16 +47,16 @@ DATASET_NETWORK_CONFIG = {
     ("20news", "logreg"): {
         "num_epoch": 21,
         "batch_size": 64,
-        "lr": 0.01,
+        "lr": 0.1,
         "decay": True,
-        "n_tr": 200,
-        "n_val": 200,
-        "n_test": 200,
+        "n_tr": 256,
+        "n_val": 256,
+        "n_test": 256,
     },
     ("20news", "dnn"): {
         "num_epoch": 21,
         "batch_size": 64,
-        "lr": 0.01,
+        "lr": 0.1,
         "decay": True,
         "n_tr": 200,
         "n_val": 200,
