@@ -1,6 +1,6 @@
 #!/bin/zsh
-#SBATCH --job-name=logreg                    # 作业名称
-#SBATCH --output=logreg_%j.log               # 标准输出和错误重定向到文件
+#SBATCH --job-name=20news                    # 作业名称
+#SBATCH --output=%x_%j.log                   # 输出文件
 #SBATCH --ntasks=1                           # 总任务数
 #SBATCH --cpus-per-task=6                    # 每个任务所需的 CPU 核数
 #SBATCH --gres=gpu:3                         # 需要的 GPU 数量
@@ -9,8 +9,8 @@
 #SBATCH --partition=debug                    # 使用的分区
 
 # 设置初始seed和终了seed
-INITIAL_SEED=100
-FINAL_SEED=195
+INITIAL_SEED=0
+FINAL_SEED=15
 
 # 默认设置
 HOME_DIR="/home/zihan/codes"
@@ -40,12 +40,12 @@ TRAIN_SCRIPT="$WORK_DIR/train.py"
 
 PYTHON_COMMAND='
     # 20NEWS - logreg
-    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 --lr 0.1;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
 
     # 20NEWS - dnn
     $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
