@@ -39,29 +39,21 @@ WORK_DIR="$HOME_DIR/sgd-influence/experiment/Sec71"
 TRAIN_SCRIPT="$WORK_DIR/train.py"
 
 PYTHON_COMMAND='
-    # MNIST - logreg
-    $PYTHON_ENV "$WORK_DIR/train.py" --target mnist --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target mnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/mnist_logreg;
+    # 20NEWS - logreg
+    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg;
 
-    # EMNIST - logreg
-    $PYTHON_ENV "$WORK_DIR/train.py" --target emnist --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target emnist --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/emnist_logreg;
-
-    # ADULT - logreg
-    $PYTHON_ENV "$WORK_DIR/train.py" --target adult --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target adult --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/adult_logreg;
+    # 20NEWS - dnn
+    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
 '
 
 # 打印当前设置（用于调试）
