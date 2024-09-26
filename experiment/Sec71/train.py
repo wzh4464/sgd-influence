@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Monday, 23rd September 2024 10:48:34 am
+# Last Modified: Thursday, 26th September 2024 8:27:05 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -149,6 +149,57 @@ def load_data(
     return x_tr, y_tr, x_val, y_val, data_sizes, training_params, relabeled_indices
 
 
+def save_at_initial(
+    model,
+    net_func,
+    list_of_sgd_models,
+    list_of_counterfactual_models,
+    n,
+    compute_counterfactual,
+    logger,
+):
+    m = net_func()
+    m.load_state_dict(copy.deepcopy(model.state_dict()))
+    m.to("cpu")
+    if n == -1:
+        list_of_sgd_models.append(m)
+        logger.debug(
+            f"Saved initial SGD model. Total models: {len(list_of_sgd_models)}"
+        )
+
+    if compute_counterfactual and n >= 0:
+        list_of_counterfactual_models[n] = NetList([m])
+        logger.debug(f"Saved initial model for counterfactual sample {n}")
+
+
+def save_after_epoch(
+    model,
+    net_func,
+    list_of_counterfactual_models,
+    n,
+    epoch,
+    compute_counterfactual,
+    logger,
+):
+    if compute_counterfactual and n >= 0:
+        m = net_func()
+        m.load_state_dict(copy.deepcopy(model.state_dict()))
+        m.to("cpu")
+        list_of_counterfactual_models[n].models.append(m)
+        logger.debug(f"Saved model for counterfactual sample {n}, epoch {epoch+1}")
+
+
+def save_after_step(model, net_func, list_of_sgd_models, n, total_step, logger):
+    if n == -1:
+        m = net_func()
+        m.load_state_dict(copy.deepcopy(model.state_dict()))
+        m.to("cpu")
+        list_of_sgd_models.append(m)
+        logger.debug(
+            f"Saved SGD model at step {total_step+1}. Total models: {len(list_of_sgd_models)}"
+        )
+
+
 def train_and_save(
     key: str,
     model_type: str,
@@ -231,41 +282,54 @@ def train_and_save(
     logger.debug(f"Model {model_type} initialized with alpha={alpha}")
 
     # Get input dimension for the model
-    input_dim = x_tr.shape[
-        1:
-    ]  # if model_type not in ["cnn_cifar"] else (3, x_tr.shape[1], x_tr.shape[2])
+    input_dim = x_tr.shape[1:]
 
     # Training setup
     net_func = lambda: get_model(model_type, input_dim, device, logger)
     num_steps = int(np.ceil(data_sizes["n_tr"] / training_params["batch_size"]))
+    list_of_counterfactual_models = (
+        [NetList([]) for _ in range(data_sizes["n_tr"])]
+        if compute_counterfactual
+        else None
+    )
+
+    # Initialize metrics and models
     list_of_sgd_models = []
     list_of_counterfactual_models = (
         [NetList([]) for _ in range(data_sizes["n_tr"])]
         if compute_counterfactual
         else None
     )
-    main_losses = []
-    test_accuracies = []
-    train_losses = [np.nan]
 
-    logger.debug(f"Starting training for {training_params['num_epoch']} epochs")
-
-    # Training loop
-    for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
-        logger.info(f"Training model {n+1}/{data_sizes['n_tr']}")
+    def train_single_model(n, loss_fn=nn.BCEWithLogitsLoss()):
         torch.manual_seed(seed)
         model = net_func()
-        loss_fn = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.SGD(
             model.parameters(),
             lr=training_params["lr"],
             momentum=0.0,
         )
-
         lr_n = training_params["lr"]
         skip = [n]
         info = []
-        c = 0
+        main_losses = []
+        test_accuracies = []
+        train_losses = []
+        total_step = 0
+
+        # Initial evaluation
+        with torch.no_grad():
+            val_loss = loss_fn(model(x_val), y_val).item()
+            main_losses.append(val_loss)
+            train_losses.append(np.nan)
+            test_pred = (model(x_val) > 0).float()
+            test_acc = (test_pred == y_val).float().mean().item()
+            test_accuracies.append(test_acc)
+            logger.debug(
+                f"Initial Validation Loss for n={n}: {val_loss:.4f}, Initial Test Accuracy: {test_acc:.4f}"
+            )
+        
+        save_at_initial(model, net_func, list_of_sgd_models if n == -1 else None, list_of_counterfactual_models, n, compute_counterfactual, logger)
 
         for epoch in range(training_params["num_epoch"]):
             epoch_loss = 0.0
@@ -275,52 +339,13 @@ def train_and_save(
             )
             for i in range(num_steps):
                 info.append({"idx": idx_list[i], "lr": lr_n})
-                c += 1
-
-                # Save models and losses
-                m = net_func()
-                m.load_state_dict(copy.deepcopy(model.state_dict()))
-                if n < 0:
-                    m.to("cpu")
-                    list_of_sgd_models.append(m)
-                    if (
-                        c % num_steps == 0
-                        or c == num_steps * training_params["num_epoch"]
-                    ):
-                        with torch.no_grad():
-                            val_loss = loss_fn(model(x_val), y_val).item()
-                            main_losses.append(val_loss)
-                            test_pred = (model(x_val) > 0).float()
-                            test_acc = (test_pred == y_val).float().mean().item()
-                            test_accuracies.append(test_acc)
-                            logger.debug(
-                                f"Epoch {epoch+1}/{training_params['num_epoch']}, "
-                                f"Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}"
-                            )
-                elif compute_counterfactual:
-                    if (
-                        c % num_steps == 0
-                        or c == num_steps * training_params["num_epoch"]
-                    ):
-                        m.to("cpu")
-                        list_of_counterfactual_models[n].models.append(m)
 
                 # SGD optimization
                 idx = idx_list[i]
                 b = idx.size
                 idx = np.setdiff1d(idx, skip)
-
-                logger.debug(f"Shape of x_tr[idx]: {x_tr[idx].shape}")
-                logger.debug(f"Type of model: {type(model)}")
-
                 z = model(x_tr[idx])
                 loss = loss_fn(z, y_tr[idx])
-
-                if (
-                    c % num_steps == 0 or c == num_steps * training_params["num_epoch"]
-                ) and n < 0:
-                    train_losses.append(loss.item())
-
                 epoch_loss += loss.item()
 
                 # Add regularization
@@ -334,126 +359,108 @@ def train_and_save(
 
                 # Learning rate decay
                 if training_params["decay"]:
-                    lr_n *= np.sqrt(c / (c + 1))
+                    lr_n *= np.sqrt((total_step + 1) / (total_step + 2))
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_n
+
+                if n == -1:
+                    save_after_step(model, net_func, list_of_sgd_models, n, total_step, logger)
+                total_step += 1
 
                 # Clean up
                 del z, loss
                 torch.cuda.empty_cache()
 
-            # End of epoch logging
-            logger.debug(
-                f"Epoch {epoch+1}/{training_params['num_epoch']}, "
-                f"Average Training Loss: {epoch_loss/num_steps:.4f}"
-            )
-            torch.cuda.empty_cache()
-
-        # Save final model
-        if n < 0:
-            m = net_func()
-            m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to("cpu")
-            list_of_sgd_models.append(m)
+            # End of epoch evaluation
             with torch.no_grad():
                 val_loss = loss_fn(model(x_val), y_val).item()
                 main_losses.append(val_loss)
                 test_pred = (model(x_val) > 0).float()
                 test_acc = (test_pred == y_val).float().mean().item()
                 test_accuracies.append(test_acc)
+                train_losses.append(epoch_loss / num_steps)
                 logger.debug(
-                    f"Final Validation Loss: {val_loss:.4f}, Final Test Accuracy: {test_acc:.4f}"
+                    f"n={n}, Epoch {epoch+1}/{training_params['num_epoch']}, "
+                    f"Validation Loss: {val_loss:.4f}, Test Accuracy: {test_acc:.4f}, "
+                    f"Average Training Loss: {epoch_loss/num_steps:.4f}"
                 )
 
-        elif compute_counterfactual:
-            m = net_func()
-            m.load_state_dict(copy.deepcopy(model.state_dict()))
-            m.to("cpu")
-            list_of_counterfactual_models[n].models.append(m)
+            if n != -1:
+                save_after_epoch(model, net_func, list_of_counterfactual_models, n, epoch, compute_counterfactual, logger)
 
-        # Clean up after each iteration
+            torch.cuda.empty_cache()
+
+        return model, info, main_losses, test_accuracies, train_losses
+
+    # Main training loop
+    logger.debug(f"Starting training for {training_params['num_epoch']} epochs")
+    for n in range(-1, data_sizes["n_tr"] if compute_counterfactual else 0):
+        logger.info(f"Training model {n+1}/{data_sizes['n_tr']}")
+        model, info, main_losses, test_accuracies, train_losses = train_single_model(n)
+
+        if n == -1:
+            sgd_main_losses = main_losses
+            sgd_test_accuracies = test_accuracies
+            sgd_train_losses = train_losses
+            sgd_info = info
+        elif compute_counterfactual:
+            logger.debug(
+                f"Number of counterfactual models saved for sample {n}: {len(list_of_counterfactual_models[n].models)}"
+            )
+
+        # Clean up
         del model
         torch.cuda.empty_cache()
 
-    # Save more detailed information
-    data_to_save = {
-        "models": NetList(list_of_sgd_models),
-        # models: NetList object containing (num_epoch * num_steps + 1) models
-        # Each model's shape depends on the model_type (logreg, dnn, or cnn)
-        "info": info,
-        # info: List of dictionaries, length = (num_epoch * num_steps)
-        # Each dict contains 'idx' (array of integers) and 'lr' (float)
-        "counterfactual": list_of_counterfactual_models,
-        # counterfactual: List of NetList objects if compute_counterfactual is True, else None
-        # Length = n_tr if compute_counterfactual is True
-        # Each NetList contains (num_epoch + 1) models
-        "alpha": alpha,
-        # alpha: float, regularization parameter
-        "main_losses": main_losses,
-        # main_losses: List of floats, length = (num_epoch + 1)
-        # Contains validation losses at the end of each epoch
-        "test_accuracies": test_accuracies,
-        # test_accuracies: List of floats, length = (num_epoch + 1)
-        # Contains test accuracies at the end of each epoch
-        "train_losses": train_losses,
-        # train_losses: numpy array of shape (num_epoch * num_steps + 1,)
-        # Contains training losses for each batch
-        "seed": seed,
-        # seed: integer, random seed used
-        "n_tr": data_sizes["n_tr"],
-        # n_tr: integer, number of training samples
-        "n_val": data_sizes["n_val"],
-        # n_val: integer, number of validation samples
-        "n_test": data_sizes["n_test"],
-        # n_test: integer, number of test samples
-        "num_epoch": training_params["num_epoch"],
-        # num_epoch: integer, number of training epochs
-        "batch_size": training_params["batch_size"],
-        # batch_size: integer, size of each training batch
-        "lr": training_params["lr"],
-        # lr: float, initial learning rate
-        "decay": training_params["decay"],
-        # decay: boolean, whether learning rate decay is applied
-    }
+    # Verify the number of saved models
+    expected_sgd_models = training_params["num_epoch"] * num_steps + 1  # Initial model + models for each step
+    if len(list_of_sgd_models) != expected_sgd_models:
+        logger.warning(f"Unexpected number of SGD models. Expected {expected_sgd_models}, got {len(list_of_sgd_models)}")
+    else:
+        logger.info(f"Correct number of SGD models saved: {len(list_of_sgd_models)}")
 
-    data_to_save["relabeled_indices"] = relabeled_indices
-
-    # save relabeled indices to csv
-    if relabeled_indices is not None:
-        relabeled_indices_fn = os.path.join(dn, f"relabeled_indices_{seed:03d}.csv")
-        pd.DataFrame({"relabeled_indices": relabeled_indices}).to_csv(
-            relabeled_indices_fn, index=False
-        )
-        logger.debug(f"Relabeled indices saved to {relabeled_indices_fn}")
+    if compute_counterfactual:
+        for i, models in enumerate(list_of_counterfactual_models):
+            expected_models = training_params["num_epoch"] + 1  # Initial model + models for each epoch
+            if len(models.models) != expected_models:
+                logger.warning(
+                    f"Unexpected number of counterfactual models for sample {i}. Expected {expected_models}, got {len(models.models)}"
+                )
+            else:
+                logger.debug(
+                    f"Correct number of counterfactual models saved for sample {i}: {len(models.models)}"
+                )
 
     # Save data
+    data_to_save = {
+        "models": NetList(list_of_sgd_models),
+        "info": sgd_info,
+        "counterfactual": list_of_counterfactual_models,
+        "alpha": alpha,
+        "main_losses": sgd_main_losses,
+        "test_accuracies": sgd_test_accuracies,
+        "train_losses": sgd_train_losses,
+        "seed": seed,
+        "n_tr": data_sizes["n_tr"],
+        "n_val": data_sizes["n_val"],
+        "n_test": data_sizes["n_test"],
+        "num_epoch": training_params["num_epoch"],
+        "batch_size": training_params["batch_size"],
+        "lr": training_params["lr"],
+        "decay": training_params["decay"],
+        "relabeled_indices": relabeled_indices,
+    }
+
     torch.save(data_to_save, fn)
 
-    # info.insert(0, {"idx": np.arange(data_sizes["n_tr"]), "lr": training_params["lr"]})
-
-    # save step and info
-    step_fn_csv = os.path.join(dn, f"step_{seed:03d}.csv")
-
-    logger.debug(
-        f"len('step') = {len(range(len(info)))}, len('lr') = {len([d['lr'] for d in info])}, len('idx') = {len([d['idx'] for d in info])}"
-    )
-
-    pd.DataFrame(
-        {
-            "step": range(len(info)),
-            "lr": [d["lr"] for d in info],
-            "idx": [d["idx"] for d in info],
-        }
-    ).to_csv(step_fn_csv, index=False)
-
-    # Save main_losses and test_accuracies to CSV
+    # Save metrics to CSV
     csv_fn = os.path.join(dn, f"metrics_{seed:03d}.csv")
     pd.DataFrame(
         {
-            "epoch": range(len(main_losses)),
-            "main_loss": main_losses,
-            "test_accuracy": test_accuracies,
-            "train_loss": train_losses,
+            "epoch": range(len(sgd_main_losses)),
+            "main_loss": sgd_main_losses,
+            "test_accuracy": sgd_test_accuracies,
+            "train_loss": sgd_train_losses,
         }
     ).to_csv(csv_fn, index=False)
 
