@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Thursday, 26th September 2024 8:27:05 pm
+# Last Modified: Friday, 27th September 2024 10:08:04 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -100,7 +100,6 @@ def load_data(
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
     custom_lr: float = None,
-    relabel_percentage: float = None,
     device: str = "cpu",
     logger=None,
 ):
@@ -128,25 +127,45 @@ def load_data(
     )
     (x_tr, y_tr), (x_val, y_val) = z_tr, z_val
 
-    # Relabel a percentage of training data if specified
-    relabeled_indices = None
-    if relabel_percentage is not None and relabel_percentage > 0:
-        num_to_relabel = int(data_sizes["n_tr"] * relabel_percentage / 100)
-        relabeled_indices = np.random.choice(
-            data_sizes["n_tr"], num_to_relabel, replace=False
-        )
-        y_tr[relabeled_indices] = 1 - y_tr[relabeled_indices]
-        logger.info(
-            f"Relabeled {num_to_relabel} samples ({relabel_percentage}% of training data)"
-        )
-
     # Convert to tensor
     x_tr = torch.from_numpy(x_tr).to(torch.float32).to(device)
     y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
     y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
 
-    return x_tr, y_tr, x_val, y_val, data_sizes, training_params, relabeled_indices
+    return x_tr, y_tr, x_val, y_val, data_sizes, training_params
+
+
+def generate_relabel_indices(
+    n_samples: int, relabel_percentage: float, seed: int
+) -> np.ndarray:
+    """Generate indices of samples to be relabeled."""
+    np.random.seed(seed)
+    num_to_relabel = int(n_samples * relabel_percentage / 100)
+    return np.random.choice(n_samples, num_to_relabel, replace=False)
+
+
+def save_relabel_indices(indices: np.ndarray, save_dir: str, seed: int):
+    """Save relabel indices to a CSV file."""
+    os.makedirs(save_dir, exist_ok=True)
+    filename = os.path.join(save_dir, f"relabeled_indices_{seed:03d}.csv")
+    pd.DataFrame({"relabeled_indices": indices}).to_csv(filename, index=False)
+    return filename
+
+
+def load_relabel_indices(filename: str) -> np.ndarray:
+    """Load relabel indices from a CSV file."""
+    df = pd.read_csv(filename)
+    return df["relabeled_indices"].values
+
+
+def apply_relabeling(
+    y_tr: torch.Tensor, relabel_indices: np.ndarray, logger: logging.Logger
+) -> torch.Tensor:
+    """Apply relabeling to the training labels."""
+    y_tr[relabel_indices] = 1 - y_tr[relabel_indices]
+    logger.info(f"Relabeled {len(relabel_indices)} samples")
+    return y_tr
 
 
 def save_at_initial(
@@ -200,6 +219,16 @@ def save_after_step(model, net_func, list_of_sgd_models, n, total_step, logger):
         )
 
 
+def get_device(gpu: int) -> str:
+    # mps
+    if torch.backends.mps.is_available():
+        return "mps"
+    elif torch.cuda.is_available():
+        return f"cuda:{gpu}"
+    else:
+        return "cpu"
+
+
 def train_and_save(
     key: str,
     model_type: str,
@@ -212,10 +241,15 @@ def train_and_save(
     custom_num_epoch: int = None,
     custom_batch_size: int = None,
     custom_lr: float = None,
-    relabel_percentage: float = None,
     compute_counterfactual: bool = True,
     logger=None,
     save_dir: str = None,
+    relabel_csv: str = None,  # New parameter for relabel CSV file
+    x_tr=None,
+    y_tr=None,
+    x_val=None,
+    y_val=None,
+    x_test=None,
 ) -> Dict[str, Any]:
     if csv_path is None:
         csv_path = os.path.join(current_dir, "data")
@@ -223,25 +257,22 @@ def train_and_save(
     if save_dir is None:
         save_dir = f"{key}_{model_type}"
 
+    if relabel_csv:
+        # Extract the filename without extension to use as prefix
+        relabel_prefix = os.path.splitext(os.path.basename(relabel_csv))[0] + "_"
+    else:
+        relabel_prefix = ""
+
     dn = os.path.join(current_dir, save_dir)
-    fn = os.path.join(dn, f"sgd{seed:03d}.dat")
+    fn = os.path.join(dn, f"{relabel_prefix}sgd{seed:03d}.dat")
+    os.makedirs(dn, exist_ok=True)
     os.makedirs(dn, exist_ok=True)
 
-    if torch.backends.mps.is_available():
-        device = "mps"
-        print("Using MPS")
-    else:
-        # Check if CUDA is available
-        if torch.cuda.is_available():
-            device = f"cuda:{gpu}"
-        else:
-            # CUDA is not available, fall back to CPU and throw a warning
-            warnings.warn("CUDA is not available, using CPU instead.", UserWarning)
-            device = "cpu"
+    device = get_device(gpu)
 
-    # Load data
-    x_tr, y_tr, x_val, y_val, data_sizes, training_params, relabeled_indices = (
-        load_data(
+    # Load data if not provided
+    if x_tr is None or y_tr is None or x_val is None or y_val is None:
+        x_tr, y_tr, x_val, y_val, data_sizes, training_params = load_data(
             key,
             model_type,
             seed,
@@ -252,11 +283,31 @@ def train_and_save(
             custom_num_epoch,
             custom_batch_size,
             custom_lr,
-            relabel_percentage,
             device,
             logger,
         )
-    )
+    else:
+        # Use provided data
+        data_sizes = {
+            "n_tr": len(x_tr),
+            "n_val": len(x_val),
+            "n_test": len(x_test) if x_test is not None else 0,
+        }
+        _, _, training_params = initialize_data_and_params(
+            key, model_type, csv_path, logger, seed
+        )
+
+    # Apply relabeling if relabel_csv is provided
+    if relabel_csv:
+        try:
+            relabel_indices = load_relabel_indices(relabel_csv)
+            y_tr = apply_relabeling(y_tr, relabel_indices, logger)
+            logger.info(f"Applied relabeling from file: {relabel_csv}")
+        except Exception as e:
+            logger.error(f"Error applying relabeling from {relabel_csv}: {str(e)}")
+            logger.error("Proceeding without relabeling.")
+    else:
+        logger.info("No relabel CSV provided. Proceeding without relabeling.")
 
     logger.debug(
         f"Dataset {key} loaded with {data_sizes['n_tr']} training samples, {data_sizes['n_val']} validation samples"
@@ -319,6 +370,7 @@ def train_and_save(
 
         # Initial evaluation
         with torch.no_grad():
+            logger.debug(f"Shape of x_val: {x_val.shape}")
             val_loss = loss_fn(model(x_val), y_val).item()
             main_losses.append(val_loss)
             train_losses.append(np.nan)
@@ -328,8 +380,16 @@ def train_and_save(
             logger.debug(
                 f"Initial Validation Loss for n={n}: {val_loss:.4f}, Initial Test Accuracy: {test_acc:.4f}"
             )
-        
-        save_at_initial(model, net_func, list_of_sgd_models if n == -1 else None, list_of_counterfactual_models, n, compute_counterfactual, logger)
+
+        save_at_initial(
+            model,
+            net_func,
+            list_of_sgd_models if n == -1 else None,
+            list_of_counterfactual_models,
+            n,
+            compute_counterfactual,
+            logger,
+        )
 
         for epoch in range(training_params["num_epoch"]):
             epoch_loss = 0.0
@@ -364,7 +424,9 @@ def train_and_save(
                         param_group["lr"] = lr_n
 
                 if n == -1:
-                    save_after_step(model, net_func, list_of_sgd_models, n, total_step, logger)
+                    save_after_step(
+                        model, net_func, list_of_sgd_models, n, total_step, logger
+                    )
                 total_step += 1
 
                 # Clean up
@@ -386,7 +448,15 @@ def train_and_save(
                 )
 
             if n != -1:
-                save_after_epoch(model, net_func, list_of_counterfactual_models, n, epoch, compute_counterfactual, logger)
+                save_after_epoch(
+                    model,
+                    net_func,
+                    list_of_counterfactual_models,
+                    n,
+                    epoch,
+                    compute_counterfactual,
+                    logger,
+                )
 
             torch.cuda.empty_cache()
 
@@ -413,15 +483,21 @@ def train_and_save(
         torch.cuda.empty_cache()
 
     # Verify the number of saved models
-    expected_sgd_models = training_params["num_epoch"] * num_steps + 1  # Initial model + models for each step
+    expected_sgd_models = (
+        training_params["num_epoch"] * num_steps + 1
+    )  # Initial model + models for each step
     if len(list_of_sgd_models) != expected_sgd_models:
-        logger.warning(f"Unexpected number of SGD models. Expected {expected_sgd_models}, got {len(list_of_sgd_models)}")
+        logger.warning(
+            f"Unexpected number of SGD models. Expected {expected_sgd_models}, got {len(list_of_sgd_models)}"
+        )
     else:
         logger.info(f"Correct number of SGD models saved: {len(list_of_sgd_models)}")
 
     if compute_counterfactual:
         for i, models in enumerate(list_of_counterfactual_models):
-            expected_models = training_params["num_epoch"] + 1  # Initial model + models for each epoch
+            expected_models = (
+                training_params["num_epoch"] + 1
+            )  # Initial model + models for each epoch
             if len(models.models) != expected_models:
                 logger.warning(
                     f"Unexpected number of counterfactual models for sample {i}. Expected {expected_models}, got {len(models.models)}"
@@ -448,13 +524,12 @@ def train_and_save(
         "batch_size": training_params["batch_size"],
         "lr": training_params["lr"],
         "decay": training_params["decay"],
-        "relabeled_indices": relabeled_indices,
     }
 
     torch.save(data_to_save, fn)
 
     # Save metrics to CSV
-    csv_fn = os.path.join(dn, f"metrics_{seed:03d}.csv")
+    csv_fn = os.path.join(dn, f"{relabel_prefix}metrics_{seed:03d}.csv")
     pd.DataFrame(
         {
             "epoch": range(len(sgd_main_losses)),
@@ -464,7 +539,7 @@ def train_and_save(
         }
     ).to_csv(csv_fn, index=False)
 
-    logger.debug(f"Training completed. Results saved to {fn} and {csv_fn}")
+    logger.info(f"Training completed. Results saved to {fn} and {csv_fn}.")
 
     return data_to_save
 
@@ -508,10 +583,10 @@ def _run_training(args, default_config, logger):
         custom_num_epoch=args.num_epoch,
         custom_batch_size=args.batch_size,
         custom_lr=args.lr,
-        relabel_percentage=args.relabel,
         compute_counterfactual=args.compute_counterfactual,
         logger=logger,
         save_dir=args.save_dir,
+        relabel_csv=args.relabel_csv,  # Pass the relabel_csv parameter
     )
 
 
@@ -545,6 +620,11 @@ def main():
     parser.add_argument(
         "--relabel", type=float, help="percentage of training data to relabel"
     )
+    parser.add_argument(
+        "--relabel_csv",
+        type=str,
+        help="CSV file containing indices of samples to relabel",
+    )
 
     parser.set_defaults(compute_counterfactual=True)
 
@@ -554,17 +634,60 @@ def main():
     if args.save_dir is None:
         args.save_dir = f"{args.target}_{args.model}"
 
+    save_dir = os.path.join(current_dir, args.save_dir)
+
     # 创建一个 logger 实例
     log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     logger = setup_logging(
         f"{args.target}_{args.model}",
         args.seed,
-        os.path.join(current_dir, args.save_dir),
+        save_dir,
         level=log_level,
     )
 
     try:
+        # Generate and save relabel indices if --relabel is specified
+        if args.relabel is not None and args.relabel_csv is None:
+            # We need to know n_tr to generate relabel indices
+            _, data_sizes, _ = initialize_data_and_params(
+                args.target,
+                args.model,
+                os.path.join(current_dir, "data"),
+                logger,
+                args.seed,
+            )
+            n_tr = args.n_tr or data_sizes["n_tr"]
+
+            relabel_indices = generate_relabel_indices(n_tr, args.relabel, args.seed)
+            relabel_csv = save_relabel_indices(relabel_indices, save_dir, args.seed)
+            logger.info(
+                f"Generated and saved relabel indices for {args.relabel}% of data to {relabel_csv}"
+            )
+            # Note: We don't set args.relabel_csv here
+        elif args.relabel_csv is not None:
+            logger.info(f"Using provided relabel CSV file: {args.relabel_csv}")
+        else:
+            logger.info("No relabeling will be applied")
+
         _validate_arguments(logger, args)
+
+        train_and_save(
+            args.target,
+            args.model,
+            args.seed,
+            args.gpu,
+            custom_n_tr=args.n_tr,
+            custom_n_val=args.n_val,
+            custom_n_test=args.n_test,
+            custom_num_epoch=args.num_epoch,
+            custom_batch_size=args.batch_size,
+            custom_lr=args.lr,
+            compute_counterfactual=args.compute_counterfactual,
+            logger=logger,
+            save_dir=args.save_dir,
+            relabel_csv=args.relabel_csv,
+        )
+
     except ValueError as e:
         logger.error(f"Invalid argument: {str(e)}")
     except Exception as e:

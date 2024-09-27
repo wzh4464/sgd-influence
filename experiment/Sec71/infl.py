@@ -476,7 +476,7 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
 def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel_percentage=None):
     logger = logging.getLogger(f"infl_lie_{key}_{model_type}")
     logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
-    
+
     dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
@@ -508,8 +508,19 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel
         f"Full results saved to {os.path.join(dn, f'infl_lie_full_{seed:03d}.dat')}"
     )
 
+    # Save first, middle, and last epoch differences
+    first_epoch_diff = infl_list[1] - infl_list[0]
+    middle_epoch = num_epochs // 2
+    middle_epoch_diff = infl_list[middle_epoch + 1] - infl_list[middle_epoch]
+    last_epoch_diff = infl_list[-1] - infl_list[-2]
+
+    torch.save(first_epoch_diff, os.path.join(dn, f"infl_lie_first{seed:03d}.dat"))
+    torch.save(middle_epoch_diff, os.path.join(dn, f"infl_lie_middle{seed:03d}.dat"))
+    torch.save(last_epoch_diff, os.path.join(dn, f"infl_lie_last{seed:03d}.dat"))
+
     logger.info(f"Finished infl_lie computation for {key}, {model_type}, seed {seed}")
     logger.debug(f"Results saved to {csv_fn}")
+    logger.debug("Additional results saved for first, middle, and last epochs")
 
 
 def main():
