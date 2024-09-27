@@ -3,7 +3,7 @@
 # Created Date: 9th September 2024
 # Author: Zihan
 # -----
-# Last Modified: Tuesday, 24th September 2024 4:34:59 pm
+# Last Modified: Saturday, 28th September 2024 12:31:14 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -500,3 +500,36 @@ def fetch_data_module(key: str, **kwargs):
     if key not in DATA_MODULE_REGISTRY:
         raise ValueError(f"Dataset key {key} is not registered.")
     return DATA_MODULE_REGISTRY[key](**kwargs)
+
+
+def main():
+    # Setup logging
+    logger = setup_logging("DataModuleDemo", 42, "logs")
+
+    # List of all registered datasets
+    datasets = ["mnist", "20news", "adult", "cifar", "emnist"]
+
+    for dataset in datasets:
+        logger.info(f"Processing dataset: {dataset}")
+
+        try:
+            # Fetch the appropriate DataModule
+            data_module = fetch_data_module(dataset, logger=logger)
+
+            # Fetch data
+            (x_tr, y_tr), (x_val, y_val), (x_test, y_test) = data_module.fetch(
+                256, 256, 256, seed=42
+            )
+
+            # Print shapes
+            logger.info(f"{dataset.upper()} Dataset:")
+            logger.info(f"x_tr shape: {x_tr.shape}")
+            logger.info(f"y_tr shape: {y_tr.shape}")
+            logger.info("------------------------")
+
+        except Exception as e:
+            logger.error(f"Error processing {dataset}: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()
