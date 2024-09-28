@@ -3,7 +3,7 @@
 # Created Date: Friday, September 27th 2024
 # Author: Zihan
 # -----
-# Last Modified: Saturday, 28th September 2024 1:27:13 am
+# Last Modified: Saturday, 28th September 2024 5:03:54 pm
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -69,8 +69,6 @@ def load_or_train_model(args, save_dir, logger):
         )
 
 
-
-
 # Main function to run the data cleansing process
 def main():
     args = parse_arguments()  # Parse command-line arguments
@@ -131,7 +129,8 @@ def main():
     # Step 6: Save the new relabeled indices to a CSV file
     # Modify filename to include check_{check}
     updated_relabeled_indices_file = os.path.join(
-        full_save_dir, f"relabeled_indices_{args.type}_check_{args.check}_{args.seed:03d}.csv"
+        full_save_dir,
+        f"relabeled_indices_{args.type}_check_{args.check}_{args.seed:03d}.csv",
     )
     updated_relabeled_indices_df = pd.DataFrame(
         {"relabeled_indices": updated_relabeled_indices}
@@ -159,10 +158,12 @@ def main():
     check_number = len(check_indices)
     fix_number = num_corrected
     left_unfix_number = len(updated_relabeled_indices)
-    final_accuracy = final_result['test_accuracies'][-1]
+    final_accuracy = final_result["test_accuracies"][-1]
 
     # Write these details to a .txt file
-    output_txt_file = os.path.join(full_save_dir, f"summary_{args.type}_check_{args.check}_{args.seed:03d}.txt")
+    output_txt_file = os.path.join(
+        full_save_dir, f"summary_{args.type}_check_{args.check}_{args.seed:03d}.txt"
+    )
     with open(output_txt_file, "w") as f:
         f.write(f"Check number: {check_number}\n")
         f.write(f"Fix number: {fix_number}\n")
@@ -172,7 +173,6 @@ def main():
     logger.info(f"Final test accuracy: {final_accuracy}")
     logger.info(f"Final training loss: {final_result['train_losses'][-1]}")
     logger.info(f"Final validation loss: {final_result['main_losses'][-1]}")
-
 
 
 # Function to parse command-line arguments
@@ -197,7 +197,19 @@ def parse_arguments():
         "--type",
         type=str,
         default="true",
-        choices=["true", "segment_true", "icml", "sgd", "lie"],
+        choices=[
+            "true",
+            "segment_true",
+            "icml",
+            "sgd",
+            "lie",
+            "dit_first",
+            "dit_middle",
+            "dit_last",
+            "true_first",
+            "true_middle",
+            "true_last",
+        ],
         help="Type of influence to calculate",
     )
     parser.add_argument(
