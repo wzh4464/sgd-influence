@@ -11,7 +11,9 @@ import logging
 from NetworkModule import get_network
 import logging
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -28,7 +30,118 @@ MOMENTUM = 0.9
 NUM_EPOCHS = 100
 
 
-def load_data(key, n_tr, n_val, n_test, seed, device, logger=None, relabel_percentage=None, dn=None):
+def load_full_results(dn: str, seed: int, prefix: str) -> List[np.ndarray]:
+    full_results_path = os.path.join(dn, f"infl_{prefix}_full_{seed:03d}.dat")
+    return torch.load(full_results_path)
+
+
+def save_influence(infl: np.ndarray, dn: str, seed: int, suffix: str):
+    save_path = os.path.join(dn, f"infl_{suffix}{seed:03d}.dat")
+    torch.save(infl, save_path)
+
+
+def infl_helper(
+    key: str,
+    model_type: str,
+    seed: int,
+    gpu: int,
+    save_dir: str,
+    epoch_index: int,
+    suffix: str,
+    prefix: str,
+):
+    logger = logging.getLogger(f"infl_{suffix}_{key}_{model_type}")
+    logger.info(
+        f"Starting infl_{suffix} computation for {key}, {model_type}, seed {seed}"
+    )
+
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+
+    full_results = load_full_results(dn, seed, prefix)
+
+    if epoch_index >= len(full_results) - 1:
+        raise ValueError(
+            f"Epoch index {epoch_index} is out of range for results with {len(full_results)} epochs."
+        )
+
+    infl = full_results[epoch_index + 1] - full_results[epoch_index]
+    save_influence(infl, dn, seed, suffix)
+
+    logger.info(
+        f"Finished infl_{suffix} computation for {key}, {model_type}, seed {seed}"
+    )
+
+
+def infl_dit_first(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    infl_helper(key, model_type, seed, gpu, save_dir, 0, "dit_first", "lie")
+
+
+def infl_dit_middle(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    full_results = load_full_results(dn, seed, "lie")
+    middle_epoch = len(full_results) // 2 - 1
+    infl_helper(key, model_type, seed, gpu, save_dir, middle_epoch, "dit_middle", "lie")
+
+
+def infl_dit_last(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    full_results = load_full_results(dn, seed, "lie")
+    last_epoch = len(full_results) - 2
+    infl_helper(key, model_type, seed, gpu, save_dir, last_epoch, "dit_last", "lie")
+
+
+def infl_true_first(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    infl_helper(key, model_type, seed, gpu, save_dir, 0, "true_first", "segment_true")
+
+
+def infl_true_middle(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    full_results = load_full_results(dn, seed, "segment_true")
+    middle_epoch = len(full_results) // 2 - 1
+    infl_helper(
+        key,
+        model_type,
+        seed,
+        gpu,
+        save_dir,
+        middle_epoch,
+        "true_middle",
+        "segment_true",
+    )
+
+
+def infl_true_last(
+    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
+):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    full_results = load_full_results(dn, seed, "segment_true")
+    last_epoch = len(full_results) - 2
+    infl_helper(
+        key, model_type, seed, gpu, save_dir, last_epoch, "true_last", "segment_true"
+    )
+
+
+def load_data(
+    key,
+    n_tr,
+    n_val,
+    n_test,
+    seed,
+    device,
+    logger=None,
+    relabel_percentage=None,
+    dn=None,
+):
     module = fetch_data_module(
         key, data_dir=os.path.join(SCRIPT_DIR, "data"), logger=logger, seed=seed
     )
@@ -42,7 +155,7 @@ def load_data(key, n_tr, n_val, n_test, seed, device, logger=None, relabel_perce
     y_tr = torch.from_numpy(y_tr).to(torch.float32).unsqueeze(1).to(device)
     x_val = torch.from_numpy(x_val).to(torch.float32).to(device)
     y_val = torch.from_numpy(y_val).to(torch.float32).unsqueeze(1).to(device)
-    
+
     if relabel_percentage:
         idx_csv_name = os.path.join(dn, f"relabeled_indices_{seed:03d}.csv")
         # pd.DataFrame({"relabeled_indices": relabeled_indices}).to_csv(
@@ -81,37 +194,50 @@ def compute_gradient(x, y, model, loss_fn):
     return u
 
 
-def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None, relabel_percentage=None):
+def get_file_paths(
+    key, model_type, seed, infl_type=None, save_dir=None, relabel_percentage=None
+):
     dn = (
         os.path.join(SCRIPT_DIR, save_dir)
         if save_dir
         else os.path.join(SCRIPT_DIR, f"{key}_{model_type}")
     )
-    
+
     # Modify filename if relabel_percentage is set
     if relabel_percentage is not None:
-        fn = os.path.join(dn, f"relabeled_indices_{seed:03d}_sgd{seed:03d}.dat")  # New filename for relabeled data
+        fn = os.path.join(
+            dn, f"relabeled_indices_{seed:03d}_sgd{seed:03d}.dat"
+        )  # New filename for relabeled data
     else:
         fn = os.path.join(dn, f"sgd{seed:03d}.dat")
-    
+
     if infl_type:
         gn = os.path.join(dn, f"infl_{infl_type}{seed:03d}.dat")
         return dn, fn, gn
     return dn, fn
 
 
-
 def infl_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
     logger = logging.getLogger(f"infl_true_{key}_{model_type}")
     logger.info(f"Starting infl_true computation for {key}, {model_type}, seed {seed}")
 
-    dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir, relabel_percentage=relabel_percentage)
+    dn, fn, gn = get_file_paths(
+        key, model_type, seed, "true", save_dir, relabel_percentage=relabel_percentage
+    )
     os.makedirs(dn, exist_ok=True)  # Ensure the directory exists
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
     x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     # Get input_dim
@@ -139,11 +265,17 @@ def infl_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=
     logger.info(f"Finished infl_true computation for {key}, {model_type}, seed {seed}")
 
 
-def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
+def infl_segment_true(
+    key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None
+):
     logger = logging.getLogger(f"infl_segment_true_{key}_{model_type}")
-    logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
-    
-    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
+    logger.info(
+        f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}"
+    )
+
+    dn, fn = get_file_paths(
+        key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage
+    )
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
 
@@ -156,8 +288,16 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_per
 
     device = f"cuda:{gpu}"
     res = torch.load(fn, map_location=device)
-    x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+    x_tr, _, x_val, y_val = load_data(
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     input_dim = get_input_dim(x_tr, model_type)
@@ -227,19 +367,31 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_per
     )
 
     logger.debug(f"Results saved to {csv_fn}")
-    logger.info(f"Finished infl_segment_true computation for {key}, {model_type}, seed {seed}")
+    logger.info(
+        f"Finished infl_segment_true computation for {key}, {model_type}, seed {seed}"
+    )
 
 
 def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd", save_dir, relabel_percentage=relabel_percentage)
+    dn, fn, gn = get_file_paths(
+        key, model_type, seed, "sgd", save_dir, relabel_percentage=relabel_percentage
+    )
     device = f"cuda:{gpu}"
 
     logger = logging.getLogger(f"infl_sgd_{key}_{model_type}")
     logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
-    
+
     res = torch.load(fn, map_location=device)
     x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     # Get input_dim
@@ -290,15 +442,25 @@ def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=N
 
 
 def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess", save_dir, relabel_percentage=relabel_percentage)
+    dn, fn, gn = get_file_paths(
+        key, model_type, seed, "nohess", save_dir, relabel_percentage=relabel_percentage
+    )
     device = f"cuda:{gpu}"
-    
+
     logger = logging.getLogger(f"infl_nohess_{key}_{model_type}")
     logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
 
     res = torch.load(fn, map_location=device)
     x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     # Get input_dim
@@ -339,14 +501,24 @@ def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentag
 def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
     logger = logging.getLogger(f"infl_icml_{key}_{model_type}")
     logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
-    
-    dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir, relabel_percentage=relabel_percentage)
+
+    dn, fn, gn = get_file_paths(
+        key, model_type, seed, "icml", save_dir, relabel_percentage=relabel_percentage
+    )
     hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
     x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     # Get input_dim
@@ -412,13 +584,31 @@ def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=
     logger.info(f"Finished infl_icml computation for {key}, {model_type}, seed {seed}")
 
 
-def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, fn=None, relabel_percentage=None, dn=None):
+def infl_lie_helper(
+    key,
+    model_type,
+    custom_epoch,
+    seed=0,
+    gpu=0,
+    logger=None,
+    fn=None,
+    relabel_percentage=None,
+    dn=None,
+):
     device = f"cuda:{gpu}"
 
     res = torch.load(fn, map_location=device)
-    
+
     x_tr, y_tr, x_val, y_val = load_data(
-        key, res["n_tr"], res["n_val"], res["n_test"], seed, device, relabel_percentage=relabel_percentage, dn=dn, logger=logger
+        key,
+        res["n_tr"],
+        res["n_val"],
+        res["n_test"],
+        seed,
+        device,
+        relabel_percentage=relabel_percentage,
+        dn=dn,
+        logger=logger,
     )
 
     # Get input_dim
@@ -480,11 +670,15 @@ def infl_lie_helper(key, model_type, custom_epoch, seed=0, gpu=0, logger=None, f
     return infl
 
 
-def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel_percentage=None):
+def infl_lie(
+    key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel_percentage=None
+):
     logger = logging.getLogger(f"infl_lie_{key}_{model_type}")
     logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
 
-    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
+    dn, fn = get_file_paths(
+        key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage
+    )
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
 
@@ -497,7 +691,17 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel
 
     for epoch in range(num_epochs + 1):
         logger.debug(f"Computing influence for epoch {epoch}")
-        infl = infl_lie_helper(key, model_type, epoch, seed, gpu, logger, fn, relabel_percentage=relabel_percentage, dn=dn)
+        infl = infl_lie_helper(
+            key,
+            model_type,
+            epoch,
+            seed,
+            gpu,
+            logger,
+            fn,
+            relabel_percentage=relabel_percentage,
+            dn=dn,
+        )
         infl_list.append(infl)
         logger.debug(f"Completed influence computation for epoch {epoch}")
 
@@ -537,9 +741,7 @@ def main():
     parser.add_argument("--type", default="true", type=str, help="influence type")
     parser.add_argument("--seed", default=0, type=int, help="random seed")
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
-    parser.add_argument(
-        "--save_dir", type=str, help="directory to save results"
-    )
+    parser.add_argument("--save_dir", type=str, help="directory to save results")
     parser.add_argument(
         "--log_level",
         type=str,
@@ -576,15 +778,36 @@ def main():
         "nohess": infl_nohess,
         "icml": infl_icml,
         "lie": infl_lie,
+        "dit_first": infl_dit_first,
+        "dit_middle": infl_dit_middle,
+        "dit_last": infl_dit_last,
+        "true_first": infl_true_first,
+        "true_middle": infl_true_middle,
+        "true_last": infl_true_last,
     }
 
     infl_func = influence_functions[args.type]
 
     if args.seed >= 0:
-        infl_func(args.target, args.model, args.seed, args.gpu, save_dir=args.save_dir, relabel_percentage=args.relabel)
+        infl_func(
+            args.target,
+            args.model,
+            args.seed,
+            args.gpu,
+            save_dir=args.save_dir,
+            relabel_percentage=args.relabel,
+        )
     else:
         for seed in range(100):
-            infl_func(args.target, args.model, seed, args.gpu, save_dir=args.save_dir, relabel_percentage=args.relabel)
+            infl_func(
+                args.target,
+                args.model,
+                seed,
+                args.gpu,
+                save_dir=args.save_dir,
+                relabel_percentage=args.relabel,
+            )
+
 
 if __name__ == "__main__":
     main()
