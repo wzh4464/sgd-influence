@@ -4,12 +4,12 @@ import numpy as np
 import pandas as pd
 import torch
 from DataModule import fetch_data_module, DATA_MODULE_REGISTRY
-from NetworkModule import NETWORK_REGISTRY, NetList
+from NetworkModule import NETWORK_REGISTRY
 import warnings
 from logging_utils import setup_logging
 import logging
 from NetworkModule import get_network
-import logging
+from typing import List
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -34,102 +34,55 @@ def load_full_results(dn: str, seed: int, prefix: str) -> List[np.ndarray]:
     full_results_path = os.path.join(dn, f"infl_{prefix}_full_{seed:03d}.dat")
     return torch.load(full_results_path)
 
-
 def save_influence(infl: np.ndarray, dn: str, seed: int, suffix: str):
     save_path = os.path.join(dn, f"infl_{suffix}{seed:03d}.dat")
     torch.save(infl, save_path)
 
-
-def infl_helper(
-    key: str,
-    model_type: str,
-    seed: int,
-    gpu: int,
-    save_dir: str,
-    epoch_index: int,
-    suffix: str,
-    prefix: str,
-):
+def infl_helper(key: str, model_type: str, seed: int, gpu: int, save_dir: str, epoch_index: int, suffix: str, prefix: str, relabel_percentage: float = None):
     logger = logging.getLogger(f"infl_{suffix}_{key}_{model_type}")
-    logger.info(
-        f"Starting infl_{suffix} computation for {key}, {model_type}, seed {seed}"
-    )
+    logger.info(f"Starting infl_{suffix} computation for {key}, {model_type}, seed {seed}")
 
-    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
-
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
+    
     full_results = load_full_results(dn, seed, prefix)
-
+    
     if epoch_index >= len(full_results) - 1:
-        raise ValueError(
-            f"Epoch index {epoch_index} is out of range for results with {len(full_results)} epochs."
-        )
-
+        raise ValueError(f"Epoch index {epoch_index} is out of range for results with {len(full_results)} epochs.")
+    
     infl = full_results[epoch_index + 1] - full_results[epoch_index]
     save_influence(infl, dn, seed, suffix)
+    
+    logger.info(f"Finished infl_{suffix} computation for {key}, {model_type}, seed {seed}")
 
-    logger.info(
-        f"Finished infl_{suffix} computation for {key}, {model_type}, seed {seed}"
-    )
+def infl_dit_first(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    infl_helper(key, model_type, seed, gpu, save_dir, 0, "dit_first", "lie", relabel_percentage)
 
-
-def infl_dit_first(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    infl_helper(key, model_type, seed, gpu, save_dir, 0, "dit_first", "lie")
-
-
-def infl_dit_middle(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+def infl_dit_middle(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     full_results = load_full_results(dn, seed, "lie")
     middle_epoch = len(full_results) // 2 - 1
-    infl_helper(key, model_type, seed, gpu, save_dir, middle_epoch, "dit_middle", "lie")
+    infl_helper(key, model_type, seed, gpu, save_dir, middle_epoch, "dit_middle", "lie", relabel_percentage)
 
-
-def infl_dit_last(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+def infl_dit_last(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     full_results = load_full_results(dn, seed, "lie")
     last_epoch = len(full_results) - 2
-    infl_helper(key, model_type, seed, gpu, save_dir, last_epoch, "dit_last", "lie")
+    infl_helper(key, model_type, seed, gpu, save_dir, last_epoch, "dit_last", "lie", relabel_percentage)
 
+def infl_true_first(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    infl_helper(key, model_type, seed, gpu, save_dir, 0, "true_first", "segment_true", relabel_percentage)
 
-def infl_true_first(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    infl_helper(key, model_type, seed, gpu, save_dir, 0, "true_first", "segment_true")
-
-
-def infl_true_middle(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+def infl_true_middle(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     full_results = load_full_results(dn, seed, "segment_true")
     middle_epoch = len(full_results) // 2 - 1
-    infl_helper(
-        key,
-        model_type,
-        seed,
-        gpu,
-        save_dir,
-        middle_epoch,
-        "true_middle",
-        "segment_true",
-    )
+    infl_helper(key, model_type, seed, gpu, save_dir, middle_epoch, "true_middle", "segment_true", relabel_percentage)
 
-
-def infl_true_last(
-    key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None
-):
-    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir)
+def infl_true_last(key: str, model_type: str, seed: int = 0, gpu: int = 0, save_dir: str = None, relabel_percentage: float = None):
+    dn, _ = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     full_results = load_full_results(dn, seed, "segment_true")
     last_epoch = len(full_results) - 2
-    infl_helper(
-        key, model_type, seed, gpu, save_dir, last_epoch, "true_last", "segment_true"
-    )
-
+    infl_helper(key, model_type, seed, gpu, save_dir, last_epoch, "true_last", "segment_true", relabel_percentage)
 
 def load_data(
     key,
@@ -766,9 +719,9 @@ def main():
         raise ValueError(
             f"Invalid model type. Choose from {', '.join(NETWORK_REGISTRY.keys())}."
         )
-    if args.type not in ["true", "segment_true", "sgd", "nohess", "icml", "lie"]:
+    if args.type not in ["true", "segment_true", "sgd", "nohess", "icml", "lie", "dit_first", "dit_middle", "dit_last", "true_first", "true_middle", "true_last"]:
         raise ValueError(
-            "Invalid influence type. Choose from 'true', 'segment_true', 'sgd', 'nohess', 'icml', 'lie'."
+            "Invalid influence type. Choose from 'true', 'segment_true', 'sgd', 'nohess', 'icml', 'lie', 'dit_first', 'dit_middle', 'dit_last', 'true_first', 'true_middle', 'true_last'."
         )
 
     influence_functions = {
