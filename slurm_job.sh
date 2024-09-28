@@ -42,15 +42,19 @@ INFL_SCRIPT="$WORK_DIR/infl.py"
 
 PYTHON_COMMAND='
     for model in logreg dnn cnn; do
-        for seed in {0..15}; do
+        for relabel in 20 30 10; do
             for check in 5 10 15 20 25 30 35 40 45 50; do
                 # 训练模型
-                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --no-loo --relabel 10;
+                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --no-loo --relabel "$relabel";
                 
                 # 运行影响计算
-                for type in true sgd icml; do
-                    $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --relabel 10 --type "$type";
-                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --relabel 10 --type "$type" --check "$check";
+                for type in true sgd icml segment_true lie; do
+                    $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type";
+                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
+                done
+
+                for type in dit_first dit_middle dit_last true_first true_middle true_last; do
+                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
                 done
 
                 # 数据清理
