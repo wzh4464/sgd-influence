@@ -10,12 +10,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/experiment/Sec71/train.py",
             "args": [
-                "--target", "cifar",
-                "--model", "cnn",
+                "--target", "mnist",
+                "--model", "dnn",
                 "--seed", "0",
                 "--gpu", "0",
-                "--save_dir", "result/cifar_cnn_try",
-                "--no-loo"
+                "--save_dir", "cleanisng/mnist_dnn_relabel_10_try_cleansing",
+                "--no-loo",
+                "--relabel", "10",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

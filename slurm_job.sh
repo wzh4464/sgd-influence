@@ -1,5 +1,5 @@
 #!/bin/zsh
-#SBATCH --job-name=20news                    # 作业名称
+#SBATCH --job-name=mnist_cleansing            # 作业名称
 #SBATCH --output=%x_%j.log                   # 输出文件
 #SBATCH --ntasks=1                           # 总任务数
 #SBATCH --cpus-per-task=6                    # 每个任务所需的 CPU 核数
@@ -37,23 +37,26 @@ done
 PYTHON_ENV="$HOME_DIR/sgd-influence/.venv/bin/python"
 WORK_DIR="$HOME_DIR/sgd-influence/experiment/Sec71"
 TRAIN_SCRIPT="$WORK_DIR/train.py"
+CLEANSING_SCRIPT="$WORK_DIR/data_cleansing.py"
+INFL_SCRIPT="$WORK_DIR/infl.py"
 
 PYTHON_COMMAND='
-    # 20NEWS - logreg
-    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model logreg --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 --lr 0.1;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type sgd --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type icml --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type lie --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model logreg --type segment_true --seed "$seed" --gpu 0 --save_dir result/logreg/20news_logreg_lr0_1 ;
+    for model in logreg dnn cnn; do
+        for seed in {0..15}; do
+            for check in 5 10 15 20 25 30 35 40 45 50; do
+                # 训练模型
+                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --no-loo --relabel 10;
+                
+                # 运行影响计算
+                for type in true sgd icml; do
+                    $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --relabel 10 --type "$type";
+                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_10 --relabel 10 --type "$type" --check "$check";
+                done
 
-    # 20NEWS - dnn
-    $PYTHON_ENV "$WORK_DIR/train.py" --target 20news --model dnn --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type true --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type sgd --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type icml --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type lie --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
-    $PYTHON_ENV "$WORK_DIR/infl.py" --target 20news --model dnn --type segment_true --seed "$seed" --gpu 0 --save_dir result/dnn/20news_dnn;
+                # 数据清理
+            done
+        done
+    done
 '
 
 # 打印当前设置（用于调试）
@@ -62,6 +65,8 @@ echo "HOME_DIR: $HOME_DIR"
 echo "PYTHON_ENV: $PYTHON_ENV"
 echo "WORK_DIR: $WORK_DIR"
 echo "TRAIN_SCRIPT: $TRAIN_SCRIPT"
+echo "INFL_SCRIPT: $INFL_SCRIPT"
+echo "CLEANSING_SCRIPT: $CLEANSING_SCRIPT"
 
 # 显示调试信息
 echo "========== Debug Info =========="

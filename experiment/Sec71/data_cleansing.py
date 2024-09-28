@@ -3,7 +3,7 @@
 # Created Date: Friday, September 27th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 27th September 2024 10:09:53 pm
+# Last Modified: Saturday, 28th September 2024 1:27:13 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -129,8 +129,9 @@ def main():
     logger.info(f"Corrected {num_corrected} labels")
 
     # Step 6: Save the new relabeled indices to a CSV file
+    # Modify filename to include check_{check}
     updated_relabeled_indices_file = os.path.join(
-        full_save_dir, f"relabeled_indices_{args.type}_{args.seed:03d}.csv"
+        full_save_dir, f"relabeled_indices_{args.type}_check_{args.check}_{args.seed:03d}.csv"
     )
     updated_relabeled_indices_df = pd.DataFrame(
         {"relabeled_indices": updated_relabeled_indices}
@@ -149,15 +150,29 @@ def main():
         custom_n_val=train_result["n_val"],
         custom_n_test=train_result["n_test"],
         compute_counterfactual=False,  # Disable counterfactual model computation for retraining
-        save_dir=f"{save_dir}_final_{args.type}",
+        save_dir=f"{save_dir}",
         logger=logger,
         relabel_csv=updated_relabeled_indices_file,  # Use updated relabel CSV file
     )
 
-    # Step 8: Output final results
-    logger.info(f"Final test accuracy: {final_result['test_accuracies'][-1]}")
+    # Step 8: Output final results to a TXT file
+    check_number = len(check_indices)
+    fix_number = num_corrected
+    left_unfix_number = len(updated_relabeled_indices)
+    final_accuracy = final_result['test_accuracies'][-1]
+
+    # Write these details to a .txt file
+    output_txt_file = os.path.join(full_save_dir, f"summary_{args.type}_check_{args.check}_{args.seed:03d}.txt")
+    with open(output_txt_file, "w") as f:
+        f.write(f"Check number: {check_number}\n")
+        f.write(f"Fix number: {fix_number}\n")
+        f.write(f"Left unfix number: {left_unfix_number}\n")
+        f.write(f"Final accuracy: {final_accuracy}\n")
+
+    logger.info(f"Final test accuracy: {final_accuracy}")
     logger.info(f"Final training loss: {final_result['train_losses'][-1]}")
     logger.info(f"Final validation loss: {final_result['main_losses'][-1]}")
+
 
 
 # Function to parse command-line arguments

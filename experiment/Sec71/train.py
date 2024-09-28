@@ -3,7 +3,7 @@
 # Created Date: September 9th 2024
 # Author: Zihan
 # -----
-# Last Modified: Friday, 27th September 2024 10:08:04 pm
+# Last Modified: Saturday, 28th September 2024 1:01:30 am
 # Modified By: the developer formerly known as Zihan at <wzh4464@gmail.com>
 # -----
 # HISTORY:
@@ -663,30 +663,14 @@ def main():
             logger.info(
                 f"Generated and saved relabel indices for {args.relabel}% of data to {relabel_csv}"
             )
-            # Note: We don't set args.relabel_csv here
+            args.relabel_csv = relabel_csv
+            
         elif args.relabel_csv is not None:
             logger.info(f"Using provided relabel CSV file: {args.relabel_csv}")
         else:
             logger.info("No relabeling will be applied")
 
         _validate_arguments(logger, args)
-
-        train_and_save(
-            args.target,
-            args.model,
-            args.seed,
-            args.gpu,
-            custom_n_tr=args.n_tr,
-            custom_n_val=args.n_val,
-            custom_n_test=args.n_test,
-            custom_num_epoch=args.num_epoch,
-            custom_batch_size=args.batch_size,
-            custom_lr=args.lr,
-            compute_counterfactual=args.compute_counterfactual,
-            logger=logger,
-            save_dir=args.save_dir,
-            relabel_csv=args.relabel_csv,
-        )
 
     except ValueError as e:
         logger.error(f"Invalid argument: {str(e)}")

@@ -81,24 +81,31 @@ def compute_gradient(x, y, model, loss_fn):
     return u
 
 
-def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None):
+def get_file_paths(key, model_type, seed, infl_type=None, save_dir=None, relabel_percentage=None):
     dn = (
         os.path.join(SCRIPT_DIR, save_dir)
         if save_dir
         else os.path.join(SCRIPT_DIR, f"{key}_{model_type}")
     )
-    fn = os.path.join(dn, f"sgd{seed:03d}.dat")
+    
+    # Modify filename if relabel_percentage is set
+    if relabel_percentage is not None:
+        fn = os.path.join(dn, f"relabeled_indices_{seed:03d}_sgd{seed:03d}.dat")  # New filename for relabeled data
+    else:
+        fn = os.path.join(dn, f"sgd{seed:03d}.dat")
+    
     if infl_type:
         gn = os.path.join(dn, f"infl_{infl_type}{seed:03d}.dat")
         return dn, fn, gn
     return dn, fn
 
 
+
 def infl_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
     logger = logging.getLogger(f"infl_true_{key}_{model_type}")
     logger.info(f"Starting infl_true computation for {key}, {model_type}, seed {seed}")
 
-    dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "true", save_dir, relabel_percentage=relabel_percentage)
     os.makedirs(dn, exist_ok=True)  # Ensure the directory exists
     device = f"cuda:{gpu}"
 
@@ -136,7 +143,7 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_per
     logger = logging.getLogger(f"infl_segment_true_{key}_{model_type}")
     logger.info(f"Starting infl_segment_true computation for {key}, {model_type}, seed {seed}")
     
-    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_segment_true_{seed}.csv")
 
@@ -224,7 +231,7 @@ def infl_segment_true(key, model_type, seed=0, gpu=0, save_dir=None, relabel_per
 
 
 def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd", save_dir)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "sgd", save_dir, relabel_percentage=relabel_percentage)
     device = f"cuda:{gpu}"
 
     logger = logging.getLogger(f"infl_sgd_{key}_{model_type}")
@@ -283,7 +290,7 @@ def infl_sgd(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=N
 
 
 def infl_nohess(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=None):
-    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess", save_dir)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "nohess", save_dir, relabel_percentage=relabel_percentage)
     device = f"cuda:{gpu}"
     
     logger = logging.getLogger(f"infl_nohess_{key}_{model_type}")
@@ -333,7 +340,7 @@ def infl_icml(key, model_type, seed=0, gpu=0, save_dir=None, relabel_percentage=
     logger = logging.getLogger(f"infl_icml_{key}_{model_type}")
     logger.info(f"Starting infl_icml computation for {key}, {model_type}, seed {seed}")
     
-    dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir)
+    dn, fn, gn = get_file_paths(key, model_type, seed, "icml", save_dir, relabel_percentage=relabel_percentage)
     hn = os.path.join(dn, f"loss_icml{seed:03d}.dat")
     device = f"cuda:{gpu}"
 
@@ -477,7 +484,7 @@ def infl_lie(key, model_type, seed=0, gpu=0, is_csv=True, save_dir=None, relabel
     logger = logging.getLogger(f"infl_lie_{key}_{model_type}")
     logger.info(f"Starting infl_lie computation for {key}, {model_type}, seed {seed}")
 
-    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir)
+    dn, fn = get_file_paths(key, model_type, seed, save_dir=save_dir, relabel_percentage=relabel_percentage)
     os.makedirs(dn, exist_ok=True)
     csv_fn = os.path.join(dn, f"infl_lie_full_{seed}.csv")
 
@@ -532,7 +539,7 @@ def main():
     parser.add_argument("--gpu", default=0, type=int, help="gpu index")
     parser.add_argument(
         "--save_dir", type=str, help="directory to save results"
-    )  # New argument
+    )
     parser.add_argument(
         "--log_level",
         type=str,
@@ -545,6 +552,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Log level setup
+    logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
+
+    # Validate arguments
     if args.target not in DATA_MODULE_REGISTRY:
         raise ValueError(
             f"Invalid target data. Choose from {', '.join(DATA_MODULE_REGISTRY.keys())}."
@@ -574,7 +585,6 @@ def main():
     else:
         for seed in range(100):
             infl_func(args.target, args.model, seed, args.gpu, save_dir=args.save_dir, relabel_percentage=args.relabel)
-
 
 if __name__ == "__main__":
     main()
