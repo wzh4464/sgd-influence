@@ -1,11 +1,12 @@
 #!/bin/zsh
-#SBATCH --job-name=mnist_cleansing            # 作业名称
+#SBATCH --job-name=mnist_cleansing           # 作业名称
 #SBATCH --output=%x_%j.log                   # 输出文件
+#SBATCH --error=%x_%j_err.log                # 错误文件
 #SBATCH --ntasks=1                           # 总任务数
 #SBATCH --cpus-per-task=6                    # 每个任务所需的 CPU 核数
 #SBATCH --gres=gpu:3                         # 需要的 GPU 数量
 #SBATCH --mem=64G                            # 内存
-#SBATCH --time=48:00:00                      # 作业的最大运行时间
+#SBATCH --time=128:00:00                      # 作业的最大运行时间
 #SBATCH --partition=debug                    # 使用的分区
 
 # 设置初始seed和终了seed
@@ -45,15 +46,17 @@ PYTHON_COMMAND='
         for relabel in 20 30 10; do
             for check in 5 10 15 20 25 30 35 40 45 50; do
                 # 训练模型
-                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --no-loo --relabel "$relabel";
+                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel";
                 
                 # 运行影响计算
-                for type in true sgd icml segment_true lie; do
+                # for type in true sgd icml segment_true lie; do
+                for type in true segment_true; do
                     $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type";
                     $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
                 done
 
-                for type in dit_first dit_middle dit_last true_first true_middle true_last; do
+                # for type in dit_first dit_middle dit_last true_first true_middle true_last; do
+                for type in true_first true_middle true_last; do
                     $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
                 done
 
