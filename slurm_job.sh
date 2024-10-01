@@ -1,5 +1,5 @@
 #!/bin/zsh
-#SBATCH --job-name=mnist_cleansing           # 作业名称
+#SBATCH --job-name=mnist_detection           # 作业名称
 #SBATCH --output=%x_%j.log                   # 输出文件
 #SBATCH --error=%x_%j_err.log                # 错误文件
 #SBATCH --ntasks=1                           # 总任务数
@@ -41,26 +41,41 @@ TRAIN_SCRIPT="$WORK_DIR/train.py"
 CLEANSING_SCRIPT="$WORK_DIR/data_cleansing.py"
 INFL_SCRIPT="$WORK_DIR/infl.py"
 
+# cleansing
+# PYTHON_COMMAND='
+#     for model in logreg dnn cnn; do
+#         for relabel in 20 30 10; do
+#             for check in 5 10 15 20 25 30 35 40 45 50; do
+#                 # 训练模型
+#                 $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel";
+                
+#                 # 运行影响计算
+#                 # for type in true sgd icml segment_true lie; do
+#                 for type in true segment_true; do
+#                     $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type";
+#                     $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
+#                 done
+
+#                 # for type in dit_first dit_middle dit_last true_first true_middle true_last; do
+#                 for type in true_first true_middle true_last; do
+#                     $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
+#                 done
+
+#                 # 数据清理
+#             done
+#         done
+#     done
+# '
+
+# detection
 PYTHON_COMMAND='
     for model in logreg dnn cnn; do
-        for relabel in 20 30 10; do
-            for check in 5 10 15 20 25 30 35 40 45 50; do
-                # 训练模型
-                $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel";
-                
-                # 运行影响计算
-                # for type in true sgd icml segment_true lie; do
-                for type in true segment_true; do
-                    $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type";
-                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
-                done
-
-                # for type in dit_first dit_middle dit_last true_first true_middle true_last; do
-                for type in true_first true_middle true_last; do
-                    $PYTHON_ENV "$CLEANSING_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir cleansing/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type" --check "$check";
-                done
-
-                # 数据清理
+        for relabel in 4 8 12 16:; do
+            # training
+            $PYTHON_ENV "$TRAIN_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir detection/mnist_"$model"_relabel_"$relabel" --relabel "$relabel";
+            # influence
+            for type in true segment_true icml sgd lie; do
+                $PYTHON_ENV "$INFL_SCRIPT" --target mnist --model "$model" --seed "$seed" --gpu 0 --save_dir detection/mnist_"$model"_relabel_"$relabel" --relabel "$relabel" --type "$type";
             done
         done
     done
